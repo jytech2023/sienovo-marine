@@ -8,6 +8,10 @@ export type BoatState = {
   signal: number;
   baitLevel: number;
   distance: number;
+  depth: number;
+  waterTemp: number;
+  ir: boolean;
+  light: boolean;
   isOnline: boolean;
 };
 
@@ -17,6 +21,12 @@ export type BoatCommand = {
 };
 
 export type TrailPoint = {
+  lat: number;
+  lng: number;
+};
+
+export type Waypoint = {
+  id: number;
   lat: number;
   lng: number;
 };
@@ -37,4 +47,7 @@ export type IncomingMessage =
   | { type: 'control'; command: BoatCommand }
   | { type: 'release-bait' }
   | { type: 'return-home' }
-  | { type: 'set-waypoint'; lat: number; lng: number };
+  | { type: 'set-waypoint'; lat: number; lng: number }
+  | { type: 'clear-waypoints' }
+  | { type: 'bait-at-waypoint'; lat: number; lng: number }
+  | { type: 'set-camera-mode'; ir?: boolean; light?: boolean };

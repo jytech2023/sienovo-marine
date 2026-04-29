@@ -2,17 +2,19 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, type RefObject } from 'react';
 import { PIXELS_PER_METER, SCALE } from '@/lib/constants';
-import type { BoatState, TrailPoint } from '@/lib/types';
+import type { BoatState, TrailPoint, Waypoint } from '@/lib/types';
 
 type Props = {
   stateRef: RefObject<BoatState>;
   trailRef: RefObject<TrailPoint[]>;
+  waypointsRef: RefObject<Waypoint[]>;
+  targetRef: RefObject<{ lat: number; lng: number } | null>;
   homeRef: RefObject<{ lat: number; lng: number }>;
   isReturningHomeRef: RefObject<boolean>;
 };
 
 export const LakeCanvas = forwardRef<HTMLCanvasElement, Props>(function LakeCanvas(
-  { stateRef, trailRef, homeRef, isReturningHomeRef },
+  { stateRef, trailRef, waypointsRef, targetRef, homeRef, isReturningHomeRef },
   ref,
 ) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -132,10 +134,61 @@ export const LakeCanvas = forwardRef<HTMLCanvasElement, Props>(function LakeCanv
         ctx.stroke();
       }
 
+      // Waypoints (small flag markers, indexed)
+      const waypoints = waypointsRef.current ?? [];
+      for (let i = 0; i < waypoints.length; i++) {
+        const wp = waypoints[i];
+        const wx = homeX + (wp.lng - home.lng) * SCALE;
+        const wy = homeY - (wp.lat - home.lat) * SCALE;
+        ctx.beginPath();
+        ctx.moveTo(wx, wy + 8);
+        ctx.lineTo(wx, wy - 10);
+        ctx.strokeStyle = '#a29bfe';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(wx, wy - 10);
+        ctx.lineTo(wx + 9, wy - 7);
+        ctx.lineTo(wx, wy - 4);
+        ctx.closePath();
+        ctx.fillStyle = '#a29bfe';
+        ctx.fill();
+        ctx.fillStyle = '#0a1628';
+        ctx.font = 'bold 8px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(i + 1), wx + 4, wy - 6);
+        ctx.textBaseline = 'alphabetic';
+      }
+
+      // Active autopilot target (pulsing ring)
+      const target = targetRef.current;
+      if (target) {
+        const tx = homeX + (target.lng - home.lng) * SCALE;
+        const ty = homeY - (target.lat - home.lat) * SCALE;
+        const pulse = 6 + Math.sin(waveOffsetRef.current * 4) * 3;
+        ctx.beginPath();
+        ctx.arc(tx, ty, pulse, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(162, 155, 254, 0.8)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
       const s = stateRef.current!;
       const boatX = homeX + (s.lng - home.lng) * SCALE;
       const boatY = homeY - (s.lat - home.lat) * SCALE;
       const boatRad = (s.heading * Math.PI) / 180;
+
+      // Fill light halo
+      if (s.light) {
+        const halo = ctx.createRadialGradient(boatX, boatY, 0, boatX, boatY, 35);
+        halo.addColorStop(0, 'rgba(255, 245, 180, 0.45)');
+        halo.addColorStop(1, 'rgba(255, 245, 180, 0)');
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.arc(boatX, boatY, 35, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       ctx.save();
       ctx.translate(boatX, boatY);
@@ -146,7 +199,8 @@ export const LakeCanvas = forwardRef<HTMLCanvasElement, Props>(function LakeCanv
       ctx.lineTo(-7, 8);
       ctx.quadraticCurveTo(0, 12, 7, 8);
       ctx.closePath();
-      ctx.fillStyle = isReturningHomeRef.current ? '#ffa94d' : '#e0e8f0';
+      const onAutopilot = isReturningHomeRef.current || !!target;
+      ctx.fillStyle = onAutopilot ? '#ffa94d' : '#e0e8f0';
       ctx.fill();
       ctx.strokeStyle = '#4ecdc4';
       ctx.lineWidth = 1.5;
@@ -201,7 +255,7 @@ export const LakeCanvas = forwardRef<HTMLCanvasElement, Props>(function LakeCanv
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
     };
-  }, [stateRef, trailRef, homeRef, isReturningHomeRef]);
+  }, [stateRef, trailRef, waypointsRef, targetRef, homeRef, isReturningHomeRef]);
 
   return <canvas ref={canvasRef} className="lake-canvas" />;
 });

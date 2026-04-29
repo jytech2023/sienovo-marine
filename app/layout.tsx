@@ -3,10 +3,11 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Sienovo Marine',
+    default: 'Sienovo Marine · 水面无人船一体化方案',
     template: '%s | Sienovo Marine',
   },
-  description: '智能饵料船管理平台',
+  description:
+    '面向钓场、水务、环保、养殖、应急等行业的水面无人船一体化方案：手机 App + 长距遥控 + 船端控制，让水面作业更省人、更安全。',
 };
 
 export const viewport: Viewport = {

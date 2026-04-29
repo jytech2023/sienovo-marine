@@ -49,57 +49,139 @@ export const CameraCanvas = forwardRef<HTMLCanvasElement, Props>(function Camera
       const w = canvas.width / dpr;
       const h = canvas.height / dpr;
       const s = stateRef.current!;
-
-      const skyGrad = ctx.createLinearGradient(0, 0, 0, h * 0.4);
-      skyGrad.addColorStop(0, '#2a3a50');
-      skyGrad.addColorStop(1, '#1a2a3a');
-      ctx.fillStyle = skyGrad;
-      ctx.fillRect(0, 0, w, h * 0.4);
-
       const horizonY = h * 0.4;
-      const wGrad = ctx.createLinearGradient(0, horizonY, 0, h);
-      wGrad.addColorStop(0, '#1a3a5a');
-      wGrad.addColorStop(1, '#0a1e30');
-      ctx.fillStyle = wGrad;
-      ctx.fillRect(0, horizonY, w, h);
 
-      waveOffsetRef.current += 0.03;
-      const waveOffset = waveOffsetRef.current;
-      for (let row = 0; row < 8; row++) {
-        const y = horizonY + 5 + row * ((h - horizonY) / 8);
-        const amplitude = 1 + row * 0.5;
-        ctx.beginPath();
-        ctx.strokeStyle = `rgba(74, 180, 220, ${0.05 + row * 0.02})`;
-        ctx.lineWidth = 0.5 + row * 0.2;
-        for (let x = 0; x < w; x += 2) {
-          const wave = Math.sin(x * 0.05 + waveOffset + row * 0.8) * amplitude;
-          if (x === 0) ctx.moveTo(x, y + wave);
-          else ctx.lineTo(x, y + wave);
+      if (s.ir) {
+        // ===== IR / night-vision pass =====
+        ctx.fillStyle = '#02110a';
+        ctx.fillRect(0, 0, w, h);
+
+        // sky band — barely visible heat gradient
+        const skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
+        skyGrad.addColorStop(0, 'rgba(40, 110, 60, 0.45)');
+        skyGrad.addColorStop(1, 'rgba(20, 70, 40, 0.25)');
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, w, horizonY);
+
+        // water — cooler, darker
+        const wGrad = ctx.createLinearGradient(0, horizonY, 0, h);
+        wGrad.addColorStop(0, 'rgba(30, 90, 50, 0.5)');
+        wGrad.addColorStop(1, 'rgba(8, 30, 18, 0.6)');
+        ctx.fillStyle = wGrad;
+        ctx.fillRect(0, horizonY, w, h - horizonY);
+
+        // Scanlines
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
+        for (let y = 0; y < h; y += 2) ctx.fillRect(0, y, w, 1);
+
+        // Static noise dots
+        for (let i = 0; i < 60; i++) {
+          const nx = Math.random() * w;
+          const ny = Math.random() * h;
+          ctx.fillStyle = `rgba(120, 220, 140, ${Math.random() * 0.35})`;
+          ctx.fillRect(nx, ny, 1, 1);
         }
+
+        // Crosshair (greener)
+        ctx.strokeStyle = 'rgba(120, 220, 140, 0.6)';
+        ctx.lineWidth = 0.7;
+        ctx.beginPath();
+        ctx.moveTo(w / 2, horizonY + 10);
+        ctx.lineTo(w / 2, horizonY + 30);
+        ctx.moveTo(w / 2 - 10, horizonY + 20);
+        ctx.lineTo(w / 2 + 10, horizonY + 20);
+        ctx.stroke();
+      } else {
+        // ===== Visible-light pass =====
+        const skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
+        skyGrad.addColorStop(0, '#2a3a50');
+        skyGrad.addColorStop(1, '#1a2a3a');
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, w, horizonY);
+
+        const wGrad = ctx.createLinearGradient(0, horizonY, 0, h);
+        wGrad.addColorStop(0, '#1a3a5a');
+        wGrad.addColorStop(1, '#0a1e30');
+        ctx.fillStyle = wGrad;
+        ctx.fillRect(0, horizonY, w, h);
+
+        waveOffsetRef.current += 0.03;
+        const waveOffset = waveOffsetRef.current;
+        for (let row = 0; row < 8; row++) {
+          const y = horizonY + 5 + row * ((h - horizonY) / 8);
+          const amplitude = 1 + row * 0.5;
+          ctx.beginPath();
+          ctx.strokeStyle = `rgba(74, 180, 220, ${0.05 + row * 0.02})`;
+          ctx.lineWidth = 0.5 + row * 0.2;
+          for (let x = 0; x < w; x += 2) {
+            const wave = Math.sin(x * 0.05 + waveOffset + row * 0.8) * amplitude;
+            if (x === 0) ctx.moveTo(x, y + wave);
+            else ctx.lineTo(x, y + wave);
+          }
+          ctx.stroke();
+        }
+
+        // Crosshair
+        ctx.strokeStyle = 'rgba(255, 107, 107, 0.4)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(w / 2, horizonY + 10);
+        ctx.lineTo(w / 2, horizonY + 30);
+        ctx.moveTo(w / 2 - 10, horizonY + 20);
+        ctx.lineTo(w / 2 + 10, horizonY + 20);
         ctx.stroke();
       }
 
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      // ===== Fill light overlay (works in both modes) =====
+      if (s.light) {
+        const beam = ctx.createRadialGradient(w / 2, horizonY, 0, w / 2, horizonY, h * 0.7);
+        beam.addColorStop(0, 'rgba(255, 245, 180, 0.35)');
+        beam.addColorStop(0.4, 'rgba(255, 245, 180, 0.15)');
+        beam.addColorStop(1, 'rgba(255, 245, 180, 0)');
+        ctx.fillStyle = beam;
+        ctx.beginPath();
+        ctx.moveTo(w / 2, horizonY);
+        ctx.lineTo(w / 2 + h * 0.6, h);
+        ctx.lineTo(w / 2 - h * 0.6, h);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // ===== HUD overlays =====
+      const labelBg = s.ir ? 'rgba(0, 30, 10, 0.6)' : 'rgba(0,0,0,0.5)';
+      const compassColor = s.ir ? '#7ddc8d' : '#4ecdc4';
+      const speedColor = s.ir ? '#7ddc8d' : '#74b9ff';
+
+      ctx.fillStyle = labelBg;
       ctx.fillRect(w / 2 - 30, 4, 60, 16);
-      ctx.fillStyle = '#4ecdc4';
+      ctx.fillStyle = compassColor;
       ctx.font = '10px monospace';
       ctx.textAlign = 'center';
       ctx.fillText(`${s.heading.toFixed(0)}°`, w / 2, 16);
 
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillStyle = labelBg;
       ctx.fillRect(w - 55, 4, 50, 16);
-      ctx.fillStyle = '#74b9ff';
+      ctx.fillStyle = speedColor;
       ctx.textAlign = 'right';
       ctx.fillText(`${(s.speed * 3.6).toFixed(1)}km/h`, w - 8, 16);
 
-      ctx.strokeStyle = 'rgba(255, 107, 107, 0.4)';
-      ctx.lineWidth = 0.5;
-      ctx.beginPath();
-      ctx.moveTo(w / 2, horizonY + 10);
-      ctx.lineTo(w / 2, horizonY + 30);
-      ctx.moveTo(w / 2 - 10, horizonY + 20);
-      ctx.lineTo(w / 2 + 10, horizonY + 20);
-      ctx.stroke();
+      // Mode badges (bottom-left)
+      const badges: Array<[string, string]> = [];
+      if (s.ir) badges.push(['IR', '#7ddc8d']);
+      if (s.light) badges.push(['LIGHT', '#ffe680']);
+      if (badges.length) {
+        ctx.font = 'bold 9px monospace';
+        ctx.textAlign = 'left';
+        let bx = 6;
+        for (const [text, color] of badges) {
+          const tw = ctx.measureText(text).width + 8;
+          ctx.fillStyle = labelBg;
+          ctx.fillRect(bx, h - 18, tw, 14);
+          ctx.fillStyle = color;
+          ctx.fillText(text, bx + 4, h - 8);
+          bx += tw + 4;
+        }
+      }
     };
 
     raf = requestAnimationFrame(draw);

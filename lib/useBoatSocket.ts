@@ -13,8 +13,8 @@ type Options = {
 const WS_URL =
   process.env.NEXT_PUBLIC_WS_URL ??
   (typeof window !== 'undefined'
-    ? `ws://${window.location.hostname}:3000`
-    : 'ws://localhost:3000');
+    ? `ws://${window.location.hostname}:5000`
+    : 'ws://localhost:5000');
 
 export function useBoatSocket({ log, onMessage, onConnected, onDisconnected }: Options) {
   const wsRef = useRef<WebSocket | null>(null);

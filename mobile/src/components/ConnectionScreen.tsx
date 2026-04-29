@@ -28,9 +28,9 @@ interface ConnectionScreenProps {
 
 export function ConnectionScreen({ onConnect }: ConnectionScreenProps) {
   const [mode, setMode] = useState<ConnectionMode>('direct');
-  const [directUrl, setDirectUrl] = useState('ws://192.168.4.1:3000');
+  const [directUrl, setDirectUrl] = useState('ws://192.168.4.1:5000');
   const [directBoatId, setDirectBoatId] = useState('BOAT-A3F8');
-  const [relayUrl, setRelayUrl] = useState('ws://localhost:3000');
+  const [relayUrl, setRelayUrl] = useState('ws://localhost:5000');
   const [boats, setBoats] = useState<BoatInfo[]>([]);
   const [loadingBoats, setLoadingBoats] = useState(false);
   const [relayError, setRelayError] = useState<string | null>(null);
@@ -122,7 +122,7 @@ export function ConnectionScreen({ onConnect }: ConnectionScreenProps) {
                 style={styles.input}
                 value={directUrl}
                 onChangeText={setDirectUrl}
-                placeholder="ws://192.168.4.1:3000"
+                placeholder="ws://192.168.4.1:5000"
                 placeholderTextColor="#3a5a7a"
                 autoCapitalize="none"
                 autoCorrect={false}

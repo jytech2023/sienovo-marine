@@ -4,7 +4,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 // HTTP server — WebSocket signaling + read-only boats API.
 // The simulator UI is now served by the Next.js app at /boat-simulator.

@@ -14,6 +14,7 @@ import type { BoatState, IncomingMessage } from '@/lib/types';
 export default function Page() {
   const { entries, log } = useLog();
   const [boatId, setBoatId] = useState(DEFAULT_BOAT_ID);
+  const [waypointCount, setWaypointCount] = useState(0);
   const cameraCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const initLoggedRef = useRef(false);
 
@@ -23,7 +24,27 @@ export default function Page() {
     sendRef.current({ type: 'state-update', state });
   }, []);
 
-  const sim = useBoatSimulation({ log, onBroadcast: broadcast });
+  const onBaitReleasedAtTarget = useCallback(
+    (target: { lat: number; lng: number; remaining: number }) => {
+      sendRef.current({
+        type: 'bait-released',
+        remaining: target.remaining,
+        lat: target.lat,
+        lng: target.lng,
+      });
+    },
+    [],
+  );
+
+  const sim = useBoatSimulation({
+    log,
+    onBroadcast: broadcast,
+    onBaitReleasedAtTarget,
+  });
+
+  const refreshWaypointCount = useCallback(() => {
+    setWaypointCount(sim.waypointsRef.current.length);
+  }, [sim.waypointsRef]);
 
   const handleMessage = useCallback(
     (msg: IncomingMessage) => {
@@ -43,11 +64,23 @@ export default function Page() {
           sendRef.current({ type: 'returning-home' });
           break;
         case 'set-waypoint':
-          log('info', `Waypoint set: ${msg.lat.toFixed(4)}, ${msg.lng.toFixed(4)}`);
+          sim.addWaypoint(msg.lat, msg.lng);
+          refreshWaypointCount();
+          break;
+        case 'clear-waypoints':
+          sim.clearWaypoints();
+          refreshWaypointCount();
+          break;
+        case 'bait-at-waypoint':
+          sim.baitAtWaypoint(msg.lat, msg.lng);
+          sendRef.current({ type: 'going-to-waypoint', lat: msg.lat, lng: msg.lng });
+          break;
+        case 'set-camera-mode':
+          sim.setCameraMode({ ir: msg.ir, light: msg.light });
           break;
       }
     },
-    [sim, log],
+    [sim, refreshWaypointCount],
   );
 
   const handleConnected = useCallback(
@@ -75,7 +108,6 @@ export default function Page() {
     sendRef.current = socket.send;
   }, [socket.send]);
 
-  // Single physics RAF — canvases run their own draw RAFs
   useEffect(() => {
     let raf = 0;
     const loop = () => {
@@ -86,7 +118,6 @@ export default function Page() {
     return () => cancelAnimationFrame(raf);
   }, [sim]);
 
-  // Camera frame broadcast at 5fps
   useEffect(() => {
     if (!socket.isConnected) return;
     const id = setInterval(() => {
@@ -102,13 +133,12 @@ export default function Page() {
     return () => clearInterval(id);
   }, [socket.isConnected, socket.send]);
 
-  // One-time init log
   useEffect(() => {
     if (initLoggedRef.current) return;
     initLoggedRef.current = true;
     const wsUrl =
       process.env.NEXT_PUBLIC_WS_URL ??
-      `ws://${window.location.hostname}:3000`;
+      `ws://${window.location.hostname}:5000`;
     log('info', 'Boat simulator initialized');
     log('info', `Server: ${wsUrl}`);
     log('info', 'Click "启动船只" to connect');
@@ -120,6 +150,19 @@ export default function Page() {
     } else {
       socket.connect(boatId || DEFAULT_BOAT_ID);
     }
+  };
+
+  const onToggleIR = () => {
+    sim.setCameraMode({ ir: !sim.stateRef.current.ir });
+  };
+
+  const onToggleLight = () => {
+    sim.setCameraMode({ light: !sim.stateRef.current.light });
+  };
+
+  const onClearWaypoints = () => {
+    sim.clearWaypoints();
+    refreshWaypointCount();
   };
 
   return (
@@ -135,6 +178,8 @@ export default function Page() {
         <LakeCanvas
           stateRef={sim.stateRef}
           trailRef={sim.trailRef}
+          waypointsRef={sim.waypointsRef}
+          targetRef={sim.targetRef}
           homeRef={sim.homeRef}
           isReturningHomeRef={sim.isReturningHomeRef}
         />
@@ -145,8 +190,12 @@ export default function Page() {
         status={socket.status}
         isConnected={socket.isConnected}
         boatId={boatId}
+        waypointCount={waypointCount}
         onBoatIdChange={setBoatId}
         onToggleConnection={onToggleConnection}
+        onToggleIR={onToggleIR}
+        onToggleLight={onToggleLight}
+        onClearWaypoints={onClearWaypoints}
         cameraCanvasRef={cameraCanvasRef}
         stateRef={sim.stateRef}
       />
