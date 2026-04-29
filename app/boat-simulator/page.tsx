@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { LakeCanvas } from './components/LakeCanvas';
-import { LogPanel } from './components/LogPanel';
-import { SidePanel } from './components/SidePanel';
-import { StatusBadge } from './components/StatusBadge';
+import { LakeCanvas } from './_components/LakeCanvas';
+import { LogPanel } from './_components/LogPanel';
+import { SidePanel } from './_components/SidePanel';
+import { StatusBadge } from './_components/StatusBadge';
 import { CAMERA_FRAME_RATE, DEFAULT_BOAT_ID } from '@/lib/constants';
 import { useBoatSimulation } from '@/lib/useBoatSimulation';
 import { useBoatSocket } from '@/lib/useBoatSocket';

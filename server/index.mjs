@@ -3,28 +3,14 @@
 
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
-import { readFileSync, existsSync } from 'fs';
-import { join, extname } from 'path';
 
 const PORT = process.env.PORT || 3000;
 
-// HTTP server for serving boat simulator web app
+// HTTP server — WebSocket signaling + read-only boats API.
+// The simulator UI is now served by the Next.js app at /boat-simulator.
 const httpServer = createServer((req, res) => {
-  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  if (req.url === '/' || req.url === '/index.html') {
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    const filePath = join(import.meta.dirname, '..', 'boat-simulator', 'index.html');
-    if (existsSync(filePath)) {
-      res.end(readFileSync(filePath, 'utf-8'));
-    } else {
-      res.end('<h1>Boat Simulator - index.html not found</h1>');
-    }
-    return;
-  }
-
-  // API: list online boats
   if (req.url === '/api/boats') {
     const boatList = [];
     for (const [id, boat] of boats) {
@@ -41,16 +27,6 @@ const httpServer = createServer((req, res) => {
     }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ boats: boatList, count: boatList.length }));
-    return;
-  }
-
-  // Serve static files from boat-simulator
-  const staticPath = join(import.meta.dirname, '..', 'boat-simulator', req.url);
-  if (existsSync(staticPath)) {
-    const ext = extname(staticPath);
-    const mimeTypes = { '.js': 'application/javascript', '.css': 'text/css', '.html': 'text/html', '.png': 'image/png', '.svg': 'image/svg+xml' };
-    res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'text/plain' });
-    res.end(readFileSync(staticPath));
     return;
   }
 

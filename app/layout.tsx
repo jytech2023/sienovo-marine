@@ -2,8 +2,11 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Sienovo Marine - Boat Simulator',
-  description: 'Realtime bait-boat telemetry & control simulator',
+  title: {
+    default: 'Sienovo Marine',
+    template: '%s | Sienovo Marine',
+  },
+  description: '智能饵料船管理平台',
 };
 
 export const viewport: Viewport = {
