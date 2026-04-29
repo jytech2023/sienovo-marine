@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sienovo Marine - Boat Simulator</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: #0a1628;
+      color: #e0e8f0;
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      grid-template-rows: 50px 1fr 200px;
+      height: 100vh;
+      gap: 1px;
+      background: #1a2a40;
+    }
+
+    /* Header */
+    .header {
+      grid-column: 1 / -1;
+      background: #0d1b2a;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      border-bottom: 1px solid #1a3a5c;
+    }
+    .header h1 { font-size: 16px; font-weight: 600; }
+    .header h1 span { color: #4ecdc4; }
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .status-badge.offline { background: #3a1a1a; color: #ff6b6b; }
+    .status-badge.online { background: #1a3a2a; color: #4ecdc4; }
+    .status-badge.connected { background: #1a2a3a; color: #74b9ff; }
+
+    /* Lake Canvas */
+    .lake-view {
+      position: relative;
+      background: #0a1628;
+      overflow: hidden;
+    }
+    #lakeCanvas { width: 100%; height: 100%; }
+
+    /* Side Panel */
+    .side-panel {
+      grid-row: 2 / 4;
+      background: #0d1b2a;
+      padding: 16px;
+      overflow-y: auto;
+      border-left: 1px solid #1a3a5c;
+    }
+
+    .panel-section {
+      margin-bottom: 16px;
+    }
+    .panel-section h3 {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: #5a7a9a;
+      margin-bottom: 8px;
+      letter-spacing: 1px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .stat-item {
+      background: #1a2a40;
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .stat-label { font-size: 10px; color: #5a7a9a; text-transform: uppercase; }
+    .stat-value { font-size: 18px; font-weight: 700; margin-top: 2px; }
+    .stat-value.green { color: #4ecdc4; }
+    .stat-value.blue { color: #74b9ff; }
+    .stat-value.orange { color: #ffa94d; }
+    .stat-value.red { color: #ff6b6b; }
+
+    /* Compass */
+    .compass {
+      width: 80px; height: 80px;
+      margin: 0 auto 12px;
+      position: relative;
+    }
+    .compass svg { width: 100%; height: 100%; }
+
+    /* Control inputs */
+    .control-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .control-row label {
+      font-size: 11px;
+      color: #5a7a9a;
+      min-width: 50px;
+    }
+    .control-row input[type="range"] {
+      flex: 1;
+      accent-color: #4ecdc4;
+    }
+    .control-row .val {
+      font-size: 12px;
+      min-width: 40px;
+      text-align: right;
+      font-family: monospace;
+    }
+
+    /* Log */
+    .log-panel {
+      background: #0d1b2a;
+      padding: 12px 16px;
+      border-top: 1px solid #1a3a5c;
+      overflow-y: auto;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 11px;
+    }
+    .log-entry { margin-bottom: 2px; color: #5a7a9a; }
+    .log-entry .time { color: #3a5a7a; }
+    .log-entry.info .msg { color: #74b9ff; }
+    .log-entry.success .msg { color: #4ecdc4; }
+    .log-entry.warn .msg { color: #ffa94d; }
+    .log-entry.error .msg { color: #ff6b6b; }
+    .log-entry.control .msg { color: #a29bfe; }
+
+    /* Camera POV */
+    .camera-view {
+      background: #0a1020;
+      border-radius: 8px;
+      height: 140px;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    #cameraCanvas { width: 100%; height: 100%; border-radius: 8px; }
+    .camera-label {
+      position: absolute;
+      top: 6px; left: 8px;
+      font-size: 10px;
+      color: #ff6b6b;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .camera-label .dot {
+      width: 6px; height: 6px;
+      background: #ff6b6b;
+      border-radius: 50%;
+      animation: blink 1s infinite;
+    }
+    @keyframes blink { 50% { opacity: 0.3; } }
+
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      margin-bottom: 6px;
+    }
+    .btn-primary { background: #4ecdc4; color: #0a1628; }
+    .btn-danger { background: #ff6b6b; color: #fff; }
+    .btn-secondary { background: #1a3a5c; color: #74b9ff; }
+    .btn:hover { opacity: 0.9; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .boat-id-input {
+      width: 100%;
+      padding: 8px 12px;
+      background: #1a2a40;
+      border: 1px solid #1a3a5c;
+      border-radius: 6px;
+      color: #e0e8f0;
+      font-size: 14px;
+      font-family: monospace;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    .bait-bar {
+      width: 100%;
+      height: 8px;
+      background: #1a2a40;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .bait-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #ffa94d, #4ecdc4);
+      transition: width 0.3s;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <!-- Header -->
+    <div class="header">
+      <h1>🚢 Sienovo Marine <span>Boat Simulator</span></h1>
+      <div>
+        <span id="statusBadge" class="status-badge offline">● 未连接</span>
+      </div>
+    </div>
+
+    <!-- Lake View -->
+    <div class="lake-view">
+      <canvas id="lakeCanvas"></canvas>
+    </div>
+
+    <!-- Side Panel -->
+    <div class="side-panel">
+      <!-- Camera -->
+      <div class="panel-section">
+        <h3>船载摄像头</h3>
+        <div class="camera-view">
+          <canvas id="cameraCanvas"></canvas>
+          <div class="camera-label"><span class="dot"></span> REC</div>
+        </div>
+      </div>
+
+      <!-- Connection -->
+      <div class="panel-section">
+        <h3>设备配对</h3>
+        <input type="text" id="boatIdInput" class="boat-id-input" value="BOAT-A3F8" placeholder="船只 ID" />
+        <button id="connectBtn" class="btn btn-primary" onclick="toggleConnection()">启动船只</button>
+      </div>
+
+      <!-- Stats -->
+      <div class="panel-section">
+        <h3>船只状态</h3>
+        <div class="stat-grid">
+          <div class="stat-item">
+            <div class="stat-label">速度</div>
+            <div class="stat-value blue" id="statSpeed">0.0</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">航向</div>
+            <div class="stat-value green" id="statHeading">0°</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">距离</div>
+            <div class="stat-value orange" id="statDistance">0m</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">电量</div>
+            <div class="stat-value green" id="statBattery">100%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bait -->
+      <div class="panel-section">
+        <h3>饵料仓</h3>
+        <div class="bait-bar">
+          <div class="bait-bar-fill" id="baitBarFill" style="width: 100%"></div>
+        </div>
+        <div style="font-size: 11px; color: #5a7a9a; margin-top: 4px;">
+          剩余: <span id="statBait">100</span>%
+        </div>
+      </div>
+
+      <!-- GPS -->
+      <div class="panel-section">
+        <h3>GPS 坐标</h3>
+        <div style="font-family: monospace; font-size: 12px;">
+          <div>纬度: <span id="statLat" style="color: #74b9ff;">30.2741</span></div>
+          <div>经度: <span id="statLng" style="color: #74b9ff;">120.1551</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Log -->
+    <div class="log-panel" id="logPanel"></div>
+  </div>
+
+  <script>
+    // ========== Configuration ==========
+    const WS_URL = `ws://${location.hostname}:${location.port || 3000}`;
+    // Real-world physics:
+    // Max boat speed = 5 km/h = 1.39 m/s
+    // 1 degree latitude ≈ 111,000 meters
+    // So 1.39 m/s = 0.0000125 deg/s
+    // At 60fps (16ms per frame): 0.0000125 * 0.016 = 0.0000002 deg/frame
+    const MAX_SPEED_MS = 1.39; // meters per second (5 km/h)
+    const DEG_PER_METER = 1 / 111000; // latitude degrees per meter
+    const STATE_BROADCAST_RATE = 100; // ms
+    let lastFrameTime = performance.now();
+    // Map scale: 1 meter = how many pixels on screen
+    // 1 deg ≈ 111000m, so SCALE = pixelsPerMeter * 111000
+    const PIXELS_PER_METER = 2; // 2px per meter → 500m fills 1000px
+    const SCALE = PIXELS_PER_METER * 111000;
+
+    // ========== Boat State ==========
+    let boatState = {
+      id: 'BOAT-A3F8',
+      lat: 30.2741,
+      lng: 120.1551,
+      heading: 0,
+      speed: 0,
+      battery: 100,
+      signal: 95,
+      baitLevel: 100,
+      distance: 0,
+      isOnline: false,
+    };
+
+    const homeLat = boatState.lat;
+    const homeLng = boatState.lng;
+
+    let ws = null;
+    let isConnected = false;
+    let currentCommand = { throttle: 0, rudder: 0 };
+    let isReturningHome = false;
+    let trail = []; // GPS trail
+
+    // ========== WebSocket ==========
+    function toggleConnection() {
+      if (isConnected) {
+        disconnect();
+      } else {
+        connect();
+      }
+    }
+
+    function connect() {
+      boatState.id = document.getElementById('boatIdInput').value || 'BOAT-A3F8';
+      log('info', `Connecting as ${boatState.id}...`);
+
+      ws = new WebSocket(WS_URL);
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({
+          type: 'register-boat',
+          id: boatState.id,
+          lat: boatState.lat,
+          lng: boatState.lng,
+        }));
+        isConnected = true;
+        boatState.isOnline = true;
+        updateStatus('online', '● 已上线 等待遥控器');
+        document.getElementById('connectBtn').textContent = '关闭船只';
+        document.getElementById('connectBtn').classList.remove('btn-primary');
+        document.getElementById('connectBtn').classList.add('btn-danger');
+        log('success', `Boat ${boatState.id} registered successfully`);
+      };
+
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        handleMessage(msg);
+      };
+
+      ws.onclose = () => {
+        isConnected = false;
+        boatState.isOnline = false;
+        updateStatus('offline', '● 未连接');
+        document.getElementById('connectBtn').textContent = '启动船只';
+        document.getElementById('connectBtn').classList.remove('btn-danger');
+        document.getElementById('connectBtn').classList.add('btn-primary');
+        log('warn', 'Disconnected from server');
+      };
+
+      ws.onerror = (err) => {
+        log('error', 'WebSocket error - is the server running?');
+      };
+    }
+
+    function disconnect() {
+      if (ws) {
+        ws.close();
+        ws = null;
+      }
+    }
+
+    function handleMessage(msg) {
+      switch (msg.type) {
+        case 'controller-connected':
+          updateStatus('connected', '● 遥控器已连接');
+          log('success', `Controller ${msg.controllerId} connected`);
+          break;
+
+        case 'control':
+          currentCommand = msg.command;
+          // Only cancel return-home if user actively pushes the joystick
+          if (Math.abs(msg.command.throttle) > 0.1 || Math.abs(msg.command.rudder) > 0.1) {
+            if (isReturningHome) {
+              isReturningHome = false;
+              log('warn', 'Return home cancelled by manual control');
+            }
+          }
+          break;
+
+        case 'release-bait':
+          releaseBait();
+          break;
+
+        case 'return-home':
+          startReturnHome();
+          break;
+
+        case 'set-waypoint':
+          log('info', `Waypoint set: ${msg.lat.toFixed(4)}, ${msg.lng.toFixed(4)}`);
+          break;
+      }
+    }
+
+    function releaseBait() {
+      if (boatState.baitLevel > 0) {
+        boatState.baitLevel = Math.max(0, boatState.baitLevel - 20);
+        log('success', `Bait released! Remaining: ${boatState.baitLevel}%`);
+        sendToServer({ type: 'bait-released', remaining: boatState.baitLevel });
+      } else {
+        log('warn', 'Bait tank empty!');
+      }
+    }
+
+    function startReturnHome() {
+      isReturningHome = true;
+      log('info', 'Returning to home position...');
+      sendToServer({ type: 'returning-home' });
+    }
+
+    function sendToServer(msg) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(msg));
+      }
+    }
+
+    // ========== Physics Simulation (real units) ==========
+    // boatState.speed is now in m/s (0 ~ 1.39 m/s = 0 ~ 5 km/h)
+    function updatePhysics() {
+      const now = performance.now();
+      const dt = (now - lastFrameTime) / 1000; // seconds since last frame
+      lastFrameTime = now;
+      if (dt > 0.1) return; // skip large gaps (tab switch etc.)
+
+      if (isReturningHome) {
+        // Calculate real distance to home in meters
+        const dLatM = (homeLat - boatState.lat) * 111000;
+        const dLngM = (homeLng - boatState.lng) * 111000 * Math.cos(boatState.lat * Math.PI / 180);
+        const distM = Math.sqrt(dLatM * dLatM + dLngM * dLngM);
+
+        if (distM < 1) { // within 1 meter = arrived
+          isReturningHome = false;
+          boatState.speed = 0;
+          boatState.lat = homeLat;
+          boatState.lng = homeLng;
+          log('success', 'Arrived at home position!');
+          sendToServer({ type: 'arrived-home' });
+          return;
+        }
+
+        // Point toward home
+        boatState.heading = (Math.atan2(dLngM, dLatM) * 180 / Math.PI + 360) % 360;
+        // Speed: cruise at 3 km/h, slow down within 10m
+        const cruiseSpeed = 0.83; // 3 km/h in m/s
+        const targetSpeed = distM < 10 ? cruiseSpeed * (distM / 10) : cruiseSpeed;
+        boatState.speed += (targetSpeed - boatState.speed) * 2 * dt;
+      } else {
+        // Manual control
+        boatState.heading = (boatState.heading + currentCommand.rudder * 90 * dt) % 360;
+        if (boatState.heading < 0) boatState.heading += 360;
+
+        // throttle 0~1 maps to 0 ~ MAX_SPEED_MS (1.39 m/s = 5 km/h)
+        const targetSpeed = Math.max(0, currentCommand.throttle) * MAX_SPEED_MS;
+        boatState.speed += (targetSpeed - boatState.speed) * 3 * dt;
+
+        // Natural drag when no input
+        if (Math.abs(currentCommand.throttle) < 0.01 && Math.abs(currentCommand.rudder) < 0.01) {
+          boatState.speed *= Math.pow(0.3, dt); // decay to ~30% per second
+          if (boatState.speed < 0.01) boatState.speed = 0;
+        }
+      }
+
+      // Move in GPS coordinates
+      if (boatState.speed > 0.001) {
+        const rad = boatState.heading * Math.PI / 180;
+        const moveMeters = boatState.speed * dt;
+        boatState.lat += Math.cos(rad) * moveMeters * DEG_PER_METER;
+        boatState.lng += Math.sin(rad) * moveMeters * DEG_PER_METER / Math.cos(boatState.lat * Math.PI / 180);
+      }
+
+      // Distance from home in real meters
+      const dlat = (boatState.lat - homeLat) * 111000;
+      const dlng = (boatState.lng - homeLng) * 111000 * Math.cos(boatState.lat * Math.PI / 180);
+      boatState.distance = Math.sqrt(dlat * dlat + dlng * dlng);
+
+      // Battery drain (lose ~1% per minute at full speed)
+      boatState.battery = Math.max(0, boatState.battery - (boatState.speed / MAX_SPEED_MS) * 0.017 * dt);
+
+      // Trail (record every ~0.5 meter)
+      const lastTrail = trail[trail.length - 1];
+      if (!lastTrail || Math.abs(boatState.lat - lastTrail.lat) + Math.abs(boatState.lng - lastTrail.lng) > DEG_PER_METER * 0.5) {
+        trail.push({ lat: boatState.lat, lng: boatState.lng });
+        if (trail.length > 2000) trail.shift();
+      }
+    }
+
+    // ========== State Broadcast ==========
+    setInterval(() => {
+      if (isConnected) {
+        sendToServer({ type: 'state-update', state: { ...boatState } });
+      }
+    }, STATE_BROADCAST_RATE);
+
+    // ========== Camera Frame Broadcast (5 FPS) ==========
+    setInterval(() => {
+      if (isConnected && camCanvas) {
+        try {
+          const frameData = camCanvas.toDataURL('image/jpeg', 0.4);
+          sendToServer({ type: 'camera-frame', frame: frameData });
+        } catch(e) {}
+      }
+    }, 200);
+
+    // ========== Lake Rendering ==========
+    const lakeCanvas = document.getElementById('lakeCanvas');
+    const ctx = lakeCanvas.getContext('2d');
+
+    function resizeCanvas() {
+      const rect = lakeCanvas.parentElement.getBoundingClientRect();
+      lakeCanvas.width = rect.width * devicePixelRatio;
+      lakeCanvas.height = rect.height * devicePixelRatio;
+      lakeCanvas.style.width = rect.width + 'px';
+      lakeCanvas.style.height = rect.height + 'px';
+      ctx.scale(devicePixelRatio, devicePixelRatio);
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    let waveOffset = 0;
+
+    function drawLake() {
+      const w = lakeCanvas.width / devicePixelRatio;
+      const h = lakeCanvas.height / devicePixelRatio;
+
+      // Sky gradient
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, h * 0.3);
+      skyGrad.addColorStop(0, '#1a2a40');
+      skyGrad.addColorStop(1, '#0d1b2a');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, w, h * 0.3);
+
+      // Water
+      const waterGrad = ctx.createLinearGradient(0, h * 0.3, 0, h);
+      waterGrad.addColorStop(0, '#0a2a4a');
+      waterGrad.addColorStop(0.5, '#0a1e35');
+      waterGrad.addColorStop(1, '#081828');
+      ctx.fillStyle = waterGrad;
+      ctx.fillRect(0, h * 0.3, w, h * 0.7);
+
+      // Horizon line
+      ctx.strokeStyle = '#1a4a6a';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, h * 0.3);
+      ctx.lineTo(w, h * 0.3);
+      ctx.stroke();
+
+      // Waves
+      waveOffset += 0.02;
+      ctx.strokeStyle = 'rgba(74, 180, 220, 0.08)';
+      ctx.lineWidth = 1;
+      for (let row = 0; row < 15; row++) {
+        const y = h * 0.35 + row * (h * 0.7 / 15);
+        ctx.beginPath();
+        for (let x = 0; x < w; x += 3) {
+          const wave = Math.sin(x * 0.02 + waveOffset + row * 0.5) * (3 + row * 0.5);
+          if (x === 0) ctx.moveTo(x, y + wave);
+          else ctx.lineTo(x, y + wave);
+        }
+        ctx.stroke();
+      }
+
+      // Grid (GPS reference)
+      ctx.strokeStyle = 'rgba(74, 180, 220, 0.05)';
+      ctx.lineWidth = 0.5;
+      for (let x = 0; x < w; x += 50) {
+        ctx.beginPath(); ctx.moveTo(x, h * 0.3); ctx.lineTo(x, h); ctx.stroke();
+      }
+      for (let y = h * 0.3; y < h; y += 50) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+      }
+
+      // Home marker
+      const homeX = w / 2;
+      const homeY = h * 0.7;
+      ctx.beginPath();
+      ctx.arc(homeX, homeY, 6, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(78, 205, 196, 0.3)';
+      ctx.fill();
+      ctx.strokeStyle = '#4ecdc4';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = '#4ecdc4';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('HOME', homeX, homeY - 12);
+
+      // Trail
+      if (trail.length > 1) {
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(116, 185, 255, 0.3)';
+        ctx.lineWidth = 1.5;
+        for (let i = 0; i < trail.length; i++) {
+          const tx = homeX + (trail[i].lng - homeLng) * SCALE;
+          const ty = homeY - (trail[i].lat - homeLat) * SCALE;
+          if (i === 0) ctx.moveTo(tx, ty);
+          else ctx.lineTo(tx, ty);
+        }
+        ctx.stroke();
+      }
+
+      // Boat
+      const boatX = homeX + (boatState.lng - homeLng) * SCALE;
+      const boatY = homeY - (boatState.lat - homeLat) * SCALE;
+      const boatRad = boatState.heading * Math.PI / 180;
+
+      ctx.save();
+      ctx.translate(boatX, boatY);
+      ctx.rotate(boatRad);
+
+      // Boat body
+      ctx.beginPath();
+      ctx.moveTo(0, -14);
+      ctx.lineTo(-7, 8);
+      ctx.quadraticCurveTo(0, 12, 7, 8);
+      ctx.closePath();
+      ctx.fillStyle = isReturningHome ? '#ffa94d' : '#e0e8f0';
+      ctx.fill();
+      ctx.strokeStyle = '#4ecdc4';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Direction indicator
+      ctx.beginPath();
+      ctx.moveTo(0, -14);
+      ctx.lineTo(0, -20);
+      ctx.strokeStyle = '#ff6b6b';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.restore();
+
+      // Boat label
+      ctx.fillStyle = '#74b9ff';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(boatState.id, boatX, boatY - 24);
+
+      // Distance line
+      if (boatState.distance > 1) {
+        ctx.beginPath();
+        ctx.moveTo(homeX, homeY);
+        ctx.lineTo(boatX, boatY);
+        ctx.strokeStyle = 'rgba(255, 169, 77, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const midX = (homeX + boatX) / 2;
+        const midY = (homeY + boatY) / 2;
+        ctx.fillStyle = '#ffa94d';
+        ctx.font = '11px monospace';
+        ctx.fillText(`${boatState.distance.toFixed(0)}m`, midX + 10, midY - 5);
+      }
+
+      // Scale
+      ctx.fillStyle = '#3a5a7a';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText('50m', 15, h - 15);
+      ctx.beginPath();
+      ctx.moveTo(15, h - 10);
+      ctx.lineTo(15 + 50 * PIXELS_PER_METER, h - 10); // 50m scale bar
+      ctx.strokeStyle = '#3a5a7a';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // ========== Camera POV Rendering ==========
+    const camCanvas = document.getElementById('cameraCanvas');
+    const camCtx = camCanvas.getContext('2d');
+
+    function resizeCamCanvas() {
+      const rect = camCanvas.parentElement.getBoundingClientRect();
+      camCanvas.width = rect.width * devicePixelRatio;
+      camCanvas.height = rect.height * devicePixelRatio;
+      camCanvas.style.width = rect.width + 'px';
+      camCanvas.style.height = rect.height + 'px';
+      camCtx.scale(devicePixelRatio, devicePixelRatio);
+    }
+    resizeCamCanvas();
+    window.addEventListener('resize', resizeCamCanvas);
+
+    let camWaveOffset = 0;
+
+    function drawCamera() {
+      const w = camCanvas.width / devicePixelRatio;
+      const h = camCanvas.height / devicePixelRatio;
+
+      // Sky
+      const skyGrad = camCtx.createLinearGradient(0, 0, 0, h * 0.4);
+      skyGrad.addColorStop(0, '#2a3a50');
+      skyGrad.addColorStop(1, '#1a2a3a');
+      camCtx.fillStyle = skyGrad;
+      camCtx.fillRect(0, 0, w, h * 0.4);
+
+      // Horizon - shift based on heading
+      const horizonY = h * 0.4;
+
+      // Water
+      const wGrad = camCtx.createLinearGradient(0, horizonY, 0, h);
+      wGrad.addColorStop(0, '#1a3a5a');
+      wGrad.addColorStop(1, '#0a1e30');
+      camCtx.fillStyle = wGrad;
+      camCtx.fillRect(0, horizonY, w, h);
+
+      // Waves with perspective
+      camWaveOffset += 0.03;
+      for (let row = 0; row < 8; row++) {
+        const y = horizonY + 5 + row * ((h - horizonY) / 8);
+        const amplitude = 1 + row * 0.5;
+        camCtx.beginPath();
+        camCtx.strokeStyle = `rgba(74, 180, 220, ${0.05 + row * 0.02})`;
+        camCtx.lineWidth = 0.5 + row * 0.2;
+        for (let x = 0; x < w; x += 2) {
+          const wave = Math.sin(x * 0.05 + camWaveOffset + row * 0.8) * amplitude;
+          if (x === 0) camCtx.moveTo(x, y + wave);
+          else camCtx.lineTo(x, y + wave);
+        }
+        camCtx.stroke();
+      }
+
+      // Compass overlay
+      camCtx.fillStyle = 'rgba(0,0,0,0.5)';
+      camCtx.fillRect(w / 2 - 30, 4, 60, 16);
+      camCtx.fillStyle = '#4ecdc4';
+      camCtx.font = '10px monospace';
+      camCtx.textAlign = 'center';
+      camCtx.fillText(`${boatState.heading.toFixed(0)}°`, w / 2, 16);
+
+      // Speed overlay
+      camCtx.fillStyle = 'rgba(0,0,0,0.5)';
+      camCtx.fillRect(w - 55, 4, 50, 16);
+      camCtx.fillStyle = '#74b9ff';
+      camCtx.textAlign = 'right';
+      camCtx.fillText(`${(boatState.speed * 3.6).toFixed(1)}km/h`, w - 8, 16);
+
+      // Crosshair
+      camCtx.strokeStyle = 'rgba(255, 107, 107, 0.4)';
+      camCtx.lineWidth = 0.5;
+      camCtx.beginPath();
+      camCtx.moveTo(w / 2, horizonY + 10);
+      camCtx.lineTo(w / 2, horizonY + 30);
+      camCtx.moveTo(w / 2 - 10, horizonY + 20);
+      camCtx.lineTo(w / 2 + 10, horizonY + 20);
+      camCtx.stroke();
+    }
+
+    // ========== UI Updates ==========
+    function updateUI() {
+      document.getElementById('statSpeed').textContent = (boatState.speed * 3.6).toFixed(1) + ' km/h';
+      document.getElementById('statHeading').textContent = boatState.heading.toFixed(0) + '°';
+      document.getElementById('statDistance').textContent = boatState.distance.toFixed(0) + 'm';
+      document.getElementById('statBattery').textContent = boatState.battery.toFixed(0) + '%';
+      document.getElementById('statBait').textContent = boatState.baitLevel.toFixed(0);
+      document.getElementById('baitBarFill').style.width = boatState.baitLevel + '%';
+      document.getElementById('statLat').textContent = boatState.lat.toFixed(6);
+      document.getElementById('statLng').textContent = boatState.lng.toFixed(6);
+
+      // Battery color
+      const battEl = document.getElementById('statBattery');
+      battEl.className = 'stat-value ' + (boatState.battery > 50 ? 'green' : boatState.battery > 20 ? 'orange' : 'red');
+    }
+
+    function updateStatus(cls, text) {
+      const badge = document.getElementById('statusBadge');
+      badge.className = 'status-badge ' + cls;
+      badge.textContent = text;
+    }
+
+    function log(level, message) {
+      const panel = document.getElementById('logPanel');
+      const time = new Date().toLocaleTimeString('zh-CN');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${level}`;
+      entry.innerHTML = `<span class="time">[${time}]</span> <span class="msg">${message}</span>`;
+      panel.appendChild(entry);
+      panel.scrollTop = panel.scrollHeight;
+      if (panel.children.length > 100) panel.removeChild(panel.firstChild);
+    }
+
+    // ========== Main Loop ==========
+    function mainLoop() {
+      updatePhysics();
+      drawLake();
+      drawCamera();
+      updateUI();
+      requestAnimationFrame(mainLoop);
+    }
+
+    log('info', 'Boat simulator initialized');
+    log('info', `Server: ${WS_URL}`);
+    log('info', 'Click "启动船只" to connect');
+    mainLoop();
+  </script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+export type BoatState = {
+  id: string;
+  lat: number;
+  lng: number;
+  heading: number;
+  speed: number;
+  battery: number;
+  signal: number;
+  baitLevel: number;
+  distance: number;
+  isOnline: boolean;
+};
+
+export type BoatCommand = {
+  throttle: number;
+  rudder: number;
+};
+
+export type TrailPoint = {
+  lat: number;
+  lng: number;
+};
+
+export type LogLevel = 'info' | 'success' | 'warn' | 'error' | 'control';
+
+export type LogEntry = {
+  id: number;
+  level: LogLevel;
+  message: string;
+  time: string;
+};
+
+export type ConnectionStatus = 'offline' | 'online' | 'connected';
+
+export type IncomingMessage =
+  | { type: 'controller-connected'; controllerId: string }
+  | { type: 'control'; command: BoatCommand }
+  | { type: 'release-bait' }
+  | { type: 'return-home' }
+  | { type: 'set-waypoint'; lat: number; lng: number };
