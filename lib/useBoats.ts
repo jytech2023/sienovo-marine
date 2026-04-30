@@ -55,16 +55,8 @@ export type CreateBoatInput = {
   config?: ConfigItem[];
 };
 
-const API_BASE = (() => {
-  const wsUrl = process.env.NEXT_PUBLIC_WS_URL;
-  if (wsUrl) return wsUrl.replace(/^ws/, 'http');
-  if (typeof window !== 'undefined')
-    return `http://${window.location.hostname}:5001`;
-  return 'http://localhost:5001';
-})();
-
 export async function createBoat(input: CreateBoatInput) {
-  const res = await fetch(`${API_BASE}/api/boats`, {
+  const res = await fetch('/api/boats', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -77,7 +69,7 @@ export async function createBoat(input: CreateBoatInput) {
 }
 
 export async function deleteBoat(id: string) {
-  const res = await fetch(`${API_BASE}/api/boats/${encodeURIComponent(id)}`, {
+  const res = await fetch(`/api/boats/${encodeURIComponent(id)}`, {
     method: 'DELETE',
   });
   const data = await res.json().catch(() => ({}));
@@ -98,7 +90,7 @@ export function useBoats(intervalMs = 3000) {
 
     const fetchBoats = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/boats`);
+        const res = await fetch('/api/boats');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as { boats: BoatSummary[] };
         if (!cancelled) {

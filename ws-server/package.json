@@ -1,0 +1,15 @@
+{
+  "name": "sienovo-marine-ws",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.20.0"
+  },
+  "engines": {
+    "node": "22.x"
+  }
+}
