@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Logo } from '../_components/Logo';
 import { LakeCanvas } from './_components/LakeCanvas';
 import { LogPanel } from './_components/LogPanel';
 import { SidePanel } from './_components/SidePanel';
@@ -8,12 +10,23 @@ import { StatusBadge } from './_components/StatusBadge';
 import { CAMERA_FRAME_RATE, DEFAULT_BOAT_ID } from '@/lib/constants';
 import { useBoatSimulation } from '@/lib/useBoatSimulation';
 import { useBoatSocket } from '@/lib/useBoatSocket';
+import { useBoats } from '@/lib/useBoats';
 import { useLog } from '@/lib/useLog';
 import type { BoatState, IncomingMessage } from '@/lib/types';
 
 export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <PageInner />
+    </Suspense>
+  );
+}
+
+function PageInner() {
+  const searchParams = useSearchParams();
+  const initialBoatId = searchParams.get('boatId') ?? DEFAULT_BOAT_ID;
   const { entries, log } = useLog();
-  const [boatId, setBoatId] = useState(DEFAULT_BOAT_ID);
+  const [boatId, setBoatId] = useState(initialBoatId);
   const [waypointCount, setWaypointCount] = useState(0);
   const cameraCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const initLoggedRef = useRef(false);
@@ -104,6 +117,8 @@ export default function Page() {
     onDisconnected: handleDisconnected,
   });
 
+  const { boats } = useBoats();
+
   useEffect(() => {
     sendRef.current = socket.send;
   }, [socket.send]);
@@ -138,11 +153,17 @@ export default function Page() {
     initLoggedRef.current = true;
     const wsUrl =
       process.env.NEXT_PUBLIC_WS_URL ??
-      `ws://${window.location.hostname}:5000`;
+      `ws://${window.location.hostname}:5001`;
     log('info', 'Boat simulator initialized');
     log('info', `Server: ${wsUrl}`);
-    log('info', 'Click "启动船只" to connect');
-  }, [log]);
+
+    if (searchParams.get('autoStart') === '1') {
+      log('info', `Auto-starting as ${initialBoatId}...`);
+      socket.connect(initialBoatId);
+    } else {
+      log('info', 'Click "启动船只" to connect');
+    }
+  }, [log, searchParams, initialBoatId, socket]);
 
   const onToggleConnection = () => {
     if (socket.isConnected) {
@@ -168,8 +189,9 @@ export default function Page() {
   return (
     <div className="layout">
       <header className="header">
-        <h1>
-          🚢 Sienovo Marine <span>Boat Simulator</span>
+        <h1 className="header-title">
+          <Logo size={22} className="header-logo" />
+          Sienovo Marine <span>Boat Simulator</span>
         </h1>
         <StatusBadge status={socket.status} />
       </header>
@@ -191,6 +213,7 @@ export default function Page() {
         isConnected={socket.isConnected}
         boatId={boatId}
         waypointCount={waypointCount}
+        boats={boats}
         onBoatIdChange={setBoatId}
         onToggleConnection={onToggleConnection}
         onToggleIR={onToggleIR}

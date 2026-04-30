@@ -2,7 +2,9 @@
 
 import { type RefObject } from 'react';
 import type { BoatState, ConnectionStatus } from '@/lib/types';
+import type { BoatSummary } from '@/lib/useBoats';
 import { CameraCanvas } from './CameraCanvas';
+import { BoatList } from './BoatList';
 
 type Props = {
   state: BoatState;
@@ -10,6 +12,7 @@ type Props = {
   isConnected: boolean;
   boatId: string;
   waypointCount: number;
+  boats: BoatSummary[];
   onBoatIdChange: (id: string) => void;
   onToggleConnection: () => void;
   onToggleIR: () => void;
@@ -24,6 +27,7 @@ export function SidePanel({
   isConnected,
   boatId,
   waypointCount,
+  boats,
   onBoatIdChange,
   onToggleConnection,
   onToggleIR,
@@ -39,6 +43,8 @@ export function SidePanel({
 
   return (
     <aside className="side-panel">
+      <BoatList boats={boats} activeId={boatId} onSelect={onBoatIdChange} />
+
       <section className="panel-section">
         <h3>船载摄像头</h3>
         <div className="camera-view">

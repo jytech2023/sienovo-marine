@@ -1,20 +1,31 @@
 import Link from 'next/link';
+import { LogoLockup } from './_components/Logo';
 
 const apps = [
   {
     href: '/boat-simulator',
-    title: 'Boat Simulator',
-    titleZh: '船只模拟器',
-    description: '基于 WebSocket 的虚拟船端，用于在没有实船时联调遥测、控制与航点逻辑。',
+    title: 'Control Center',
+    titleZh: '中控台（含模拟器模式）',
+    description:
+      'Web 端实时大屏：地图、视频、遥测、航点指挥与日志一体化。无实船时自动切换模拟器模式，方便研发与培训。',
+    status: 'live' as const,
+    phase: 'v1',
+  },
+  {
+    href: '/boats',
+    title: 'Boat Management',
+    titleZh: '船只管理',
+    description:
+      '集中管理船队：在线状态、电量信号、归属分组、航迹回放与告警记录，运营调度一站式视图。',
     status: 'live' as const,
     phase: 'v1',
   },
   {
     href: '#mobile-app',
     title: 'Mobile Controller',
-    titleZh: '移动遥控 App',
+    titleZh: '移动 App（与中控台同源）',
     description:
-      'iOS / Android 应用，通过 4G/WiFi 连接云端，下发航点与摇杆指令、查看实时画面与遥测。',
+      'iOS / Android 客户端，与 Web 中控台共享同一套 API，外勤遥控、查看视频与告警，随手即用。',
     status: 'pending' as const,
     phase: 'v1',
   },
@@ -95,6 +106,33 @@ const scenarios = [
   },
 ];
 
+const capabilities = [
+  {
+    group: '感知传感',
+    items: [
+      { icon: '📡', name: 'GPS 定位', desc: '高精度卫星定位，支持航迹回放与电子围栏。' },
+      { icon: '📏', name: '水深探测', desc: '实时回传所在点位水深，配合声呐识别水下地形。' },
+      { icon: '🌡️', name: '水温监测', desc: '随船记录水面与浅层水温，洞察鱼群活动规律。' },
+    ],
+  },
+  {
+    group: '视觉摄像',
+    items: [
+      { icon: '🎥', name: '摄像头控制', desc: '云台远程调节俯仰与航向，对准目标随时抓拍。' },
+      { icon: '🌙', name: '红外夜视', desc: '红外感光模式，无光环境也能看清水面与岸边。' },
+      { icon: '💡', name: 'LED 补光', desc: '可调亮度补光灯，弱光场景下补足画面与作业照明。' },
+    ],
+  },
+  {
+    group: '作业控制',
+    items: [
+      { icon: '🎯', name: '定点打窝', desc: '在地图上选点，船自动巡航至窝点投放饵料并返航。' },
+      { icon: '📍', name: '钓点 / 船点收藏', desc: '记录鱼窝、地形、好钓位，多次出钓持续复用。' },
+      { icon: '⚙️', name: '电机控制与状态', desc: '正反转、油门、转速实时显示，过流过热自动保护。' },
+    ],
+  },
+];
+
 const channels = [
   {
     name: '主链路（v1 第一期）',
@@ -102,7 +140,7 @@ const channels = [
     accent: 'blue' as const,
     badge: '第一期',
     nodes: [
-      { label: '手机 App', sub: '操控 + 直播' },
+      { label: 'App + 中控台', sub: '移动端 + Web 端' },
       { label: '云端服务', sub: 'MQTT + RTMP' },
       { label: '无人船', sub: '4G + 摄像头' },
     ],
@@ -133,7 +171,7 @@ export default function HomePage() {
     <main className="home">
       <header className="home-hero">
         <div className="home-hero-inner">
-          <span className="home-eyebrow">Sienovo Marine</span>
+          <LogoLockup size={36} className="home-eyebrow" />
           <h1>让一台无人船，胜过三个人</h1>
           <p className="home-tagline">
             围绕饵料船、巡检船、采样船等水面无人作业场景，提供从手机遥控、远距通信到船端控制的一体化方案，
@@ -155,6 +193,33 @@ export default function HomePage() {
               <p className="scenario-desc">{s.desc}</p>
               <div className="scenario-audience">{s.audience}</div>
             </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="home-section">
+        <div className="home-section-head">
+          <h2>船端能力</h2>
+          <span className="home-section-meta">
+            {capabilities.reduce((n, g) => n + g.items.length, 0)} 项功能 · 全在第一期
+          </span>
+        </div>
+        <div className="capability-stack">
+          {capabilities.map((group) => (
+            <div key={group.group} className="capability-group">
+              <h3 className="capability-group-name">{group.group}</h3>
+              <div className="capability-grid">
+                {group.items.map((item) => (
+                  <div key={item.name} className="capability-item">
+                    <span className="capability-icon" aria-hidden>{item.icon}</span>
+                    <div className="capability-body">
+                      <div className="capability-name">{item.name}</div>
+                      <div className="capability-desc">{item.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </section>
@@ -232,7 +297,7 @@ export default function HomePage() {
       <footer className="home-footer">
         <span>© Sienovo Marine</span>
         <span className="home-footer-sep">·</span>
-        <span>WebSocket 信令服务运行于 :5000</span>
+        <span>WebSocket 信令服务运行于 :5001</span>
       </footer>
     </main>
   );
