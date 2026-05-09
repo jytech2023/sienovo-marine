@@ -8,6 +8,17 @@ import { useBoats } from '@/lib/useBoats';
 
 const ENDPOINT = process.env.NEXT_PUBLIC_IOT_ENDPOINT ?? '(NEXT_PUBLIC_IOT_ENDPOINT not set)';
 const REGION = process.env.NEXT_PUBLIC_AWS_REGION ?? '(NEXT_PUBLIC_AWS_REGION not set)';
+
+const REGION_INFO: Record<string, string> = {
+  'ap-east-1': '香港 (Hong Kong)',
+  'ap-northeast-1': '东京 (Tokyo)',
+  'ap-southeast-1': '新加坡 (Singapore)',
+  'us-east-1': '弗吉尼亚 (N. Virginia)',
+  'us-west-2': '俄勒冈 (Oregon)',
+  'cn-north-1': '北京 (Beijing) — AWS China',
+  'cn-northwest-1': '宁夏 (Ningxia) — AWS China',
+};
+const REGION_CITY = REGION_INFO[REGION] ?? '';
 const POOL_ID =
   process.env.NEXT_PUBLIC_COGNITO_IDENTITY_POOL_ID ??
   '(NEXT_PUBLIC_COGNITO_IDENTITY_POOL_ID not set)';
@@ -70,7 +81,7 @@ export default function CloudBackendPage() {
       <div className="boats-banner">
         <span className="boats-banner-tag">live</span>
         <span>
-          AWS IoT Core 托管 MQTT broker — region <b>{REGION}</b>。本页通过浏览器连通性探测 + DB / MQTT 实际数据综合呈现。
+          AWS IoT Core 托管 MQTT broker — region <b>{REGION}</b>{REGION_CITY ? ` · ${REGION_CITY}` : ''}。本页通过浏览器连通性探测 + DB / MQTT 实际数据综合呈现。
         </span>
       </div>
 
@@ -106,7 +117,13 @@ export default function CloudBackendPage() {
         <h3>云端配置</h3>
         <table style={{ width: '100%', fontSize: 14 }}>
           <tbody>
-            <Row label="Region">{REGION}</Row>
+            <Row label="Region">
+              <code>{REGION}</code>
+              {REGION_CITY && <span style={{ marginLeft: 8, color: '#6b7280' }}>· {REGION_CITY}</span>}
+              <span style={{ marginLeft: 8, color: '#6b7280', fontSize: 12 }}>
+                到深圳 ~10-30ms · 到杭州 ~40-50ms
+              </span>
+            </Row>
             <Row label="MQTT broker">
               <code>{ENDPOINT}</code>
             </Row>
