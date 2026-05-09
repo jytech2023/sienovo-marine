@@ -13,7 +13,7 @@
 
 ## 1. 系统架构
 
-```
+```text
 ┌─────────────┐  MQTT/TLS:8883  ┌──────────────────┐  WSS+SigV4:443  ┌─────────────┐
 │  你的船     │◀────cert auth──▶│  AWS IoT Core    │◀──Cognito──────▶│  浏览器     │
 │  (ESP32 /   │                 │  ap-east-1 (HK)  │                 │  dashboard  │
@@ -39,6 +39,7 @@
 **怎么拿到**：联系云端运维同学，提供你要的 thing name（如 `BOAT-XXXX`），运维会回你三个文件 (`*.cert.pem` / `*.private.key` / `AmazonRootCA1.pem`)。**密钥怎么生成不在你这边的范围**，烧入硬件即可。
 
 **烧入位置建议**：
+
 - 三个 `.pem` 文件烧到 SPIFFS / LittleFS，或者 ESP-IDF 的 `nvs` partition；私钥分区**禁止可读 dump**
 - 量产时每台船一张唯一证书；不要多台共用同一证书（policy 校验会失败）
 
@@ -151,6 +152,7 @@
 | `components.*` | `"normal"` / `"warning"` / `"damaged"` / `"offline"` | 各配件健康状态，由你自检 |
 
 **注意**：
+
 - 整个对象每帧全发，不要做差量（dashboard 是无状态订阅者）
 - 浮点保留 2-6 位小数即可，没必要塞到 17 位
 - 单帧大小目标 < 600 字节（保守 4G 流量）
@@ -160,6 +162,7 @@
 按需触发的"一次性事件"——区别于 `state`（连续遥测，覆盖式）：
 
 > **判断 state vs event 的窍门**
+>
 > - 这条数据"丢一帧没事，下一帧覆盖就行"？→ 放 `state`
 > - 这条数据"是一次发生，错过就丢失意义"（投饵完成、到达航点、告警）？→ 放 `event`
 
@@ -185,6 +188,7 @@
 ```
 
 **字段约定**：
+
 - `remaining` — 0-100，投后剩余百分比（投饵后必发）
 - `lat` / `lng` — 投放时的实际 GPS 坐标（非命令坐标，能差 1-2 米都正常）
 - `weight_g` — 本次实际投放克数（如有称重传感器；没有就别加这字段）
@@ -244,7 +248,7 @@
 
 时间线，全部由船端发出：
 
-```
+```text
 T=0ms     收到 control: { type: "release-bait" }
 T=10ms    打开闸门
 T=200ms   闸门关闭，称重 -50g
@@ -254,7 +258,7 @@ T=210ms   下一个 state 帧带上 baitLevel=80（自然刷新）
 
 如果是 dashboard 点"定点打窝"（`bait-at-waypoint`）：
 
-```
+```text
 T=0       收到 control: { type: "bait-at-waypoint", lat, lng }
 T=10ms    PUBLISH event: { "type": "going-to-waypoint", lat, lng, wp_id: 7 }
 ... 自主导航中（state 持续刷新位置）...
@@ -396,6 +400,7 @@ void on_network_status(int rssi, int queue_depth) {
 | `set-fault` | `component`（key ∈ components 字段名）、`status`（normal/warning/damaged） | 模拟器/调试用；真实船端可忽略或视作"维护模式标志"|
 
 **安全约定**：
+
 - 接到 `control` 命令后，如果 1 秒内没收到下一条，**自动归零**（防遥控信号丢失船开着不停）。模拟器目前没做这个，但**真船必须做**
 - `throttle` 的限速、`rudder` 的转向限速都按硬件能力裁剪，不要直接照搬
 - 收到自己看不懂的 `type`：忽略并记日志，不要崩溃
