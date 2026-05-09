@@ -256,11 +256,7 @@ export default function HomePage() {
               <div className="home-card-head">
                 <h3>{app.title}</h3>
                 <span className={`home-card-status ${app.status}`}>
-                  {app.status === 'live'
-                    ? '在线'
-                    : app.status === 'planned'
-                      ? 'Coming Soon'
-                      : '规划中'}
+                  {app.status === 'live' ? '在线' : '规划中'}
                 </span>
               </div>
               <p className="home-card-zh">

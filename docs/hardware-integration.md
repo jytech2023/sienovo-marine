@@ -87,6 +87,16 @@
 
 ## 5. Payload 格式
 
+> **格式声明（v1）**：MQTT 协议本身只传字节流，payload 可以是任何格式。**v1 全部 topic 使用 UTF-8 编码的 JSON 文本**——便于调试和迭代。
+>
+> **未来可能变化**（优先级高到低）：
+>
+> 1. `camera` topic 改为**直接发送 raw JPEG 二进制字节**（省 33% base64 膨胀 + 省 JSON 解析），最可能优先升级
+> 2. `state` topic 高频部分（位置/速度等）改为 **Protocol Buffers** 或 **MessagePack**，体积压到 1/3
+> 3. `event` 和 `control` 大概率长期保持 JSON（频率低、字段灵活）
+>
+> **硬件组建议**：把序列化 / 反序列化封装成单独函数，未来切换格式只改这一层，业务代码不用动。任何协议变更都会在本文 PR 通知。
+
 ### 5.1 上行 · `sienovo/boats/{id}/state` （JSON）
 
 ```json
@@ -144,38 +154,237 @@
 
 ### 5.2 上行 · `sienovo/boats/{id}/event` （JSON）
 
-按需触发的事件，例如：
+按需触发的"一次性事件"——区别于 `state`（连续遥测，覆盖式）：
+
+> **判断 state vs event 的窍门**
+> - 这条数据"丢一帧没事，下一帧覆盖就行"？→ 放 `state`
+> - 这条数据"是一次发生，错过就丢失意义"（投饵完成、到达航点、告警）？→ 放 `event`
+
+`type` 是必填字段；其它字段按事件类型自定义。下面是**v1 协议覆盖的全部标准事件类型**——硬件组按需发送，dashboard 端会渲染对应 UI。
+
+#### 5.2.1 投饵流程事件
 
 ```json
-{ "type": "bait-released", "remaining": 80 }
-{ "type": "arrived-home" }
-{ "type": "going-to-waypoint", "lat": 30.275, "lng": 120.156 }
-{ "type": "alert", "code": "low-battery", "level": "warning" }
+// 用户在 dashboard 点"投饵"，命令到达船端 → 你打开闸门那一瞬间
+{ "type": "bait-released", "remaining": 80, "lat": 30.27410, "lng": 120.15510, "weight_g": 50 }
+
+// 饵料仓清空（baitLevel 跨过 0）
+{ "type": "bait-empty" }
+
+// 接到 bait-at-waypoint 命令，开始去窝点
+{ "type": "going-to-waypoint", "lat": 30.276, "lng": 120.157, "wp_id": 3 }
+
+// 到达窝点开始投放
+{ "type": "arrived-at-waypoint", "wp_id": 3 }
+
+// 自动定点打窝模式下完成一轮所有窝点
+{ "type": "auto-bait-complete", "rounds": 5, "total_g": 250 }
 ```
 
-`type` 是必填字段；其它字段按事件类型自定义。
+**字段约定**：
+- `remaining` — 0-100，投后剩余百分比（投饵后必发）
+- `lat` / `lng` — 投放时的实际 GPS 坐标（非命令坐标，能差 1-2 米都正常）
+- `weight_g` — 本次实际投放克数（如有称重传感器；没有就别加这字段）
+- `wp_id` — 航点编号（dashboard 给你的 set-waypoint 不带 ID，你自己排序加）
+
+#### 5.2.2 自主航行事件
+
+```json
+// 接到 return-home 命令，开始返航
+{ "type": "returning-home" }
+
+// 已到 home 点
+{ "type": "arrived-home" }
+
+// 接到 set-waypoint 命令并加入队列
+{ "type": "waypoint-added", "wp_id": 3, "queue_size": 4 }
+
+// 接到 clear-waypoints
+{ "type": "waypoints-cleared" }
+```
+
+#### 5.2.3 告警事件
+
+任何告警都用 `type: "alert"`，下面是 `code` 取值表：
+
+```json
+{ "type": "alert", "code": "low-battery",       "level": "warning",  "battery": 18 }
+{ "type": "alert", "code": "critical-battery",  "level": "damaged",  "battery": 4  }
+{ "type": "alert", "code": "gps-lost",          "level": "warning"   }
+{ "type": "alert", "code": "gps-recovered",     "level": "info"      }
+{ "type": "alert", "code": "link-degraded",     "level": "warning",  "signal": 25 }
+{ "type": "alert", "code": "motor-overcurrent", "level": "damaged",  "amps": 12.3 }
+{ "type": "alert", "code": "motor-overheat",    "level": "warning",  "temp_c": 78 }
+{ "type": "alert", "code": "collision",         "level": "damaged",  "axis": "front" }
+{ "type": "alert", "code": "water-ingress",     "level": "damaged"   }
+{ "type": "alert", "code": "geofence-exit",     "level": "warning",  "lat": 30.28, "lng": 120.17 }
+```
+
+**`level` 取值**：`info` / `warning` / `damaged`（与 `components.*.status` 同一套语义）。
+
+**节流原则**：同一个 alert code 不要 1Hz 狂发；建议节流到**每 30 秒最多一次**，状态恢复时发对应的 `*-recovered` 事件即可。
+
+#### 5.2.4 维护 / 生命周期事件
+
+```json
+// 开机自检完成
+{ "type": "boot-complete", "fw_version": "v1.2.3", "uptime_s": 0 }
+
+// 即将关机（用户长按 / 远程 shutdown）
+{ "type": "shutting-down", "reason": "user" }
+
+// 配件刚做了维护更换
+{ "type": "maintenance", "component": "baitDispenser", "action": "refilled", "by": "field-tech-A" }
+```
+
+#### 5.2.5 完整投饵案例（以 dashboard 点"投饵"为起点）
+
+时间线，全部由船端发出：
+
+```
+T=0ms     收到 control: { type: "release-bait" }
+T=10ms    打开闸门
+T=200ms   闸门关闭，称重 -50g
+T=210ms   PUBLISH event: { "type": "bait-released", "remaining": 80, "lat": ..., "lng": ..., "weight_g": 50 }
+T=210ms   下一个 state 帧带上 baitLevel=80（自然刷新）
+```
+
+如果是 dashboard 点"定点打窝"（`bait-at-waypoint`）：
+
+```
+T=0       收到 control: { type: "bait-at-waypoint", lat, lng }
+T=10ms    PUBLISH event: { "type": "going-to-waypoint", lat, lng, wp_id: 7 }
+... 自主导航中（state 持续刷新位置）...
+T=14s     到达
+T=14s     PUBLISH event: { "type": "arrived-at-waypoint", wp_id: 7 }
+T=14.2s   投饵完成
+T=14.2s   PUBLISH event: { "type": "bait-released", remaining: 60, ..., weight_g: 50 }
+```
 
 ### 5.3 上行 · `sienovo/boats/{id}/camera` （JSON）
+
+> **重要架构原则**：MQTT 上的 `camera` topic **只用来传"缩略图 / 预览帧"**——给 dashboard 看个画面变化、确认船在动就行。**真正的实时视频流不走 MQTT**，走 WebRTC（详见 §5.6）。
+
+#### 5.3.1 Payload 格式
 
 ```json
 {
   "frame": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ...",
-  "ts": 1712345678901
+  "ts": 1712345678901,
+  "w": 320,
+  "h": 240
 }
 ```
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `frame` | string | image data URL，支持 `image/jpeg` 或 `image/png`（推荐 JPEG，压缩好） |
+| `frame` | string | image data URL，支持 `image/jpeg` 或 `image/png`（**强烈推荐 JPEG**，压缩比好 5-10 倍） |
 | `ts` | number | 帧时间戳（毫秒），用于乱序检测 |
+| `w` / `h` | number | 可选；帧的宽高（dashboard 用来画占位框，没有也能显示） |
 
-**带宽建议**：
-- 分辨率 **320×240** 或 **640×360**（不要超过 720p，4G 撑不住）
-- JPEG 质量 **40-60**
-- 单帧 < 30 KB（理想 5-15 KB）
-- 频率 1-2 Hz；要更高帧率需先和云端商量（按消息计费）
+#### 5.3.2 硬性参数（**超过会被 broker 截断或拒绝**）
 
-### 5.4 下行 · `sienovo/boats/{id}/control` （JSON）
+| 项 | 值 | 为什么 |
+|---|---|---|
+| 单帧最大 | **120 KB** | AWS IoT 单条消息硬上限 128KB；扣掉 base64 膨胀 33% + JSON 包裹 |
+| 推荐分辨率 | **320×240** 或 **640×360** | 任何 720p 以上的图都会撞上限 |
+| JPEG 质量 | **40-60** | 60 已经够看清水面 / 鱼漂；不需要更高 |
+| 频率 | **1-2 Hz** | 高了消息计费爆掉；做实时取景请用 WebRTC |
+| 单帧理想大小 | **5-15 KB** | 4G 上行带宽 ~2 Mbps，留足 state / 控制余量 |
+
+#### 5.3.3 ESP32 + OV2640/OV5640 实现要点
+
+ESP32 用官方 [`esp_camera`](https://github.com/espressif/esp32-camera) 库：
+
+```c
+camera_config_t cam = {
+    .pixel_format = PIXFORMAT_JPEG,   // 摄像头硬件直出 JPEG，不用 CPU 编码
+    .frame_size   = FRAMESIZE_QVGA,    // 320x240
+    .jpeg_quality = 12,                // 0-63, 越小质量越高；12 ≈ JPEG quality 60
+    .fb_count     = 2,                 // 双 buffer 防丢帧
+    // ... 引脚配置略
+};
+esp_camera_init(&cam);
+
+// 每 500ms 抓帧 + 推送
+camera_fb_t* fb = esp_camera_fb_get();
+if (fb && fb->len < 30 * 1024) {  // 限大小，过大丢
+    // base64 编码 → 拼成 data URL → MQTT publish
+    char* b64 = base64_encode(fb->buf, fb->len);
+    char topic[64], payload[fb->len * 2];
+    snprintf(topic, sizeof(topic), "sienovo/boats/%s/camera", THING_NAME);
+    snprintf(payload, sizeof(payload),
+        "{\"frame\":\"data:image/jpeg;base64,%s\",\"ts\":%lld,\"w\":320,\"h\":240}",
+        b64, esp_timer_get_time() / 1000);
+    esp_mqtt_client_publish(client, topic, payload, 0, 0, 0);
+    free(b64);
+}
+esp_camera_fb_return(fb);
+```
+
+#### 5.3.4 自适应：网络差时降级
+
+伪代码：
+
+```c
+static int target_fps = 2;
+static int target_quality = 12;
+
+// 监控 publish 队列长度 / 4G RSSI / 上次 publish 是否超时
+void on_network_status(int rssi, int queue_depth) {
+    if (queue_depth > 5 || rssi < -100) {
+        target_fps = 1;       // 降到 1Hz
+        target_quality = 25;  // 质量降一档（更小的帧）
+    } else if (rssi > -85 && queue_depth < 2) {
+        target_fps = 2;       // 恢复
+        target_quality = 12;
+    }
+}
+```
+
+**最坏情况：完全停止 camera publish，让 state 继续推**——船的位置和遥测比画面重要得多。
+
+#### 5.3.5 红外 / 补光的影响
+
+收到 `set-camera-mode` 后：
+
+| 信号 | 硬件动作 |
+|---|---|
+| `ir: true` | 切到红外感光模式（OV2640 没有原生 IR，需要外接红外滤光片机械切换 + 红外 LED 阵列点亮） |
+| `light: true` | 主补光 LED 阵列点亮（注意散热 + 电流，可能需要降低 PWM） |
+
+切换后**下一帧 state 必须把 `state.ir` / `state.light` 更新成实际状态**——不要假设命令一定生效（LED 烧了、机械切换卡了都可能失败）。失败了 ➜ 推 `event` `{ "type": "alert", "code": "camera-mode-switch-failed" }`。
+
+### 5.4 实时视频 / WebRTC（v1.5+ 路线，不在当前协议）
+
+> **告知性章节**——v1 不实现。下面只是让硬件组提前知道架构走向，物料选型时考虑兼容。
+
+走 WebRTC 而不是 MQTT，原因：
+
+- **延迟**：WebRTC P2P 30-100ms vs MQTT through cloud 150-300ms（远程驾驶感差异巨大）
+- **带宽**：H.264 实时视频 1-3 Mbps，MQTT 单条 128KB 上限根本扛不住
+- **成本**：MQTT 按消息计费，30fps 视频每船每天 260 万条消息直接破产
+
+架构：
+
+```text
+                   信令: SDP / ICE candidates 走 MQTT (小数据)
+                ──────────────────────────────────────────▶
+┌──────────┐                                          ┌──────────┐
+│  船端    │   媒体流: H.264 / Opus over SRTP / UDP   │  浏览器   │
+│ (camera) │ ════════════════════ P2P ══════════════▶│           │
+│          │   ↑ NAT 穿透不了的话回落 TURN 中继        │           │
+└──────────┘                                          └──────────┘
+```
+
+候选实现：
+1. **AWS Kinesis Video Streams WebRTC**（推荐）—— 自带 STUN+TURN，浏览器有官方 SDK；ESP32 端可用 [amazon-kinesis-video-streams-webrtc-sdk-c](https://github.com/awslabs/amazon-kinesis-video-streams-webrtc-sdk-c)
+2. **LiveKit / Daily / mediasoup** —— 第三方托管，简单但脱离 AWS 栈
+3. **RTMP 推流 + HLS 拉流** —— 一对多分发好，但延迟 5-10 秒，不适合驾驶
+
+**硬件选型预留**：摄像头模组**优先选硬件 H.264 编码款**（如 OV5640 + ESP32-S3 编码器、或专用 ISP），不要只支持 JPEG——v1.5 上 WebRTC 时直出 H.264 才不会让 CPU 拖崩。
+
+### 5.5 下行 · `sienovo/boats/{id}/control` （JSON）
 
 你订阅这条 topic，对每条收到的 message 解析并执行：
 
