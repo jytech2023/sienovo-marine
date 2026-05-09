@@ -11,14 +11,34 @@ import {
   type ConfigItem,
   type ConfigType,
 } from '@/lib/useBoats';
+import { useFleetState } from '@/lib/useFleetState';
 
 type Filter = 'all' | 'online' | 'offline';
 
 export default function BoatsPage() {
-  const { boats, error, refresh } = useBoats(2000);
+  const { boats: dbBoats, error, refresh } = useBoats(60_000);
+  const { stateById, errorMessage: liveError } = useFleetState();
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+
+  // Merge DB metadata (name/group/notes) with live MQTT telemetry.
+  const boats = useMemo(() => {
+    return dbBoats.map((b) => {
+      const live = stateById[b.id];
+      if (!live) return b;
+      return {
+        ...b,
+        isOnline: live.isOnline,
+        lat: live.lat,
+        lng: live.lng,
+        battery: live.battery,
+        signal: live.signal,
+        baitLevel: live.baitLevel,
+        distance: live.distance,
+      };
+    });
+  }, [dbBoats, stateById]);
 
   const filtered = useMemo(() => {
     return boats.filter((b) => {
@@ -121,9 +141,11 @@ export default function BoatsPage() {
         />
       </section>
 
-      {error && (
+      {(error || liveError) && (
         <div className="boats-error">
-          无法连接信令服务（{error}）—— 请确认 <code>pnpm server</code> 已启动。
+          {error
+            ? `无法读取船队元数据（${error}）—— 检查 Neon DB 连接`
+            : `MQTT 实时流异常（${liveError}）—— 检查 Cognito + IoT 配置`}
         </div>
       )}
 
@@ -185,21 +207,18 @@ export default function BoatsPage() {
                         : '—'}
                     </td>
                     <td className="boat-actions">
-                      {b.isOnline ? (
-                        <Link
-                          href={`/boat-simulator?boatId=${encodeURIComponent(b.id)}`}
-                          className="boat-action"
-                        >
-                          查看
-                        </Link>
-                      ) : (
-                        <Link
-                          href={`/boat-simulator?boatId=${encodeURIComponent(b.id)}&autoStart=1`}
-                          className="boat-action"
-                        >
-                          启动模拟
-                        </Link>
-                      )}
+                      <Link
+                        href={`/boats/${encodeURIComponent(b.id)}/status`}
+                        className="boat-action"
+                      >
+                        状态
+                      </Link>
+                      <Link
+                        href={`/boats/${encodeURIComponent(b.id)}/control`}
+                        className="boat-action"
+                      >
+                        操作
+                      </Link>
                       <button
                         type="button"
                         className="boat-action danger"

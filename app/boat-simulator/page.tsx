@@ -1,18 +1,16 @@
 'use client';
 
+import { Suspense, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Logo } from '../_components/Logo';
 import { LakeCanvas } from './_components/LakeCanvas';
-import { LogPanel } from './_components/LogPanel';
-import { SidePanel } from './_components/SidePanel';
-import { StatusBadge } from './_components/StatusBadge';
-import { CAMERA_FRAME_RATE, DEFAULT_BOAT_ID } from '@/lib/constants';
-import { useBoatSimulation } from '@/lib/useBoatSimulation';
-import { useBoatSocket } from '@/lib/useBoatSocket';
+import { CameraCanvas } from './_components/CameraCanvas';
+import { BoatList } from './_components/BoatList';
+import { DEFAULT_BOAT_ID, MAX_TRAIL_POINTS, DEG_PER_METER } from '@/lib/constants';
+import { useBoatViewer } from '@/lib/useBoatViewer';
 import { useBoats } from '@/lib/useBoats';
-import { useLog } from '@/lib/useLog';
-import type { BoatState, IncomingMessage } from '@/lib/types';
+import type { BoatState, TrailPoint, Waypoint } from '@/lib/types';
 
 export default function Page() {
   return (
@@ -25,205 +23,230 @@ export default function Page() {
 function PageInner() {
   const searchParams = useSearchParams();
   const initialBoatId = searchParams.get('boatId') ?? DEFAULT_BOAT_ID;
-  const { entries, log } = useLog();
   const [boatId, setBoatId] = useState(initialBoatId);
-  const [waypointCount, setWaypointCount] = useState(0);
-  const cameraCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const initLoggedRef = useRef(false);
-
-  const sendRef = useRef<(msg: unknown) => void>(() => {});
-
-  const broadcast = useCallback((state: BoatState) => {
-    sendRef.current({ type: 'state-update', state });
-  }, []);
-
-  const onBaitReleasedAtTarget = useCallback(
-    (target: { lat: number; lng: number; remaining: number }) => {
-      sendRef.current({
-        type: 'bait-released',
-        remaining: target.remaining,
-        lat: target.lat,
-        lng: target.lng,
-      });
-    },
-    [],
-  );
-
-  const sim = useBoatSimulation({
-    log,
-    onBroadcast: broadcast,
-    onBaitReleasedAtTarget,
-  });
-
-  const refreshWaypointCount = useCallback(() => {
-    setWaypointCount(sim.waypointsRef.current.length);
-  }, [sim.waypointsRef]);
-
-  const handleMessage = useCallback(
-    (msg: IncomingMessage) => {
-      switch (msg.type) {
-        case 'control':
-          sim.setCommand(msg.command);
-          break;
-        case 'release-bait': {
-          const result = sim.releaseBait();
-          if (result.ok) {
-            sendRef.current({ type: 'bait-released', remaining: result.remaining });
-          }
-          break;
-        }
-        case 'return-home':
-          sim.startReturnHome();
-          sendRef.current({ type: 'returning-home' });
-          break;
-        case 'set-waypoint':
-          sim.addWaypoint(msg.lat, msg.lng);
-          refreshWaypointCount();
-          break;
-        case 'clear-waypoints':
-          sim.clearWaypoints();
-          refreshWaypointCount();
-          break;
-        case 'bait-at-waypoint':
-          sim.baitAtWaypoint(msg.lat, msg.lng);
-          sendRef.current({ type: 'going-to-waypoint', lat: msg.lat, lng: msg.lng });
-          break;
-        case 'set-camera-mode':
-          sim.setCameraMode({ ir: msg.ir, light: msg.light });
-          break;
-      }
-    },
-    [sim, refreshWaypointCount],
-  );
-
-  const handleConnected = useCallback(
-    (id: string) => {
-      sim.setBoatId(id);
-      sim.setOnline(true);
-      const s = sim.stateRef.current;
-      return { lat: s.lat, lng: s.lng };
-    },
-    [sim],
-  );
-
-  const handleDisconnected = useCallback(() => {
-    sim.setOnline(false);
-  }, [sim]);
-
-  const socket = useBoatSocket({
-    log,
-    onMessage: handleMessage,
-    onConnected: handleConnected,
-    onDisconnected: handleDisconnected,
-  });
-
+  const { state, status, errorMessage, cameraFrame } = useBoatViewer(boatId);
   const { boats } = useBoats();
 
-  useEffect(() => {
-    sendRef.current = socket.send;
-  }, [socket.send]);
+  // Keep internal refs that LakeCanvas needs, populated from MQTT state.
+  const stateRef = useRef<BoatState>(emptyState(boatId));
+  const trailRef = useRef<TrailPoint[]>([]);
+  const waypointsRef = useRef<Waypoint[]>([]);
+  const targetRef = useRef<{ lat: number; lng: number } | null>(null);
+  const homeRef = useRef<{ lat: number; lng: number }>({ lat: 30.2741, lng: 120.1551 });
+  const isReturningHomeRef = useRef(false);
+  const cameraCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const homeInitedRef = useRef(false);
 
+  // Whenever a new state arrives, update refs + extend trail.
   useEffect(() => {
-    let raf = 0;
-    const loop = () => {
-      sim.step();
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [sim]);
-
-  useEffect(() => {
-    if (!socket.isConnected) return;
-    const id = setInterval(() => {
-      const canvas = cameraCanvasRef.current;
-      if (!canvas) return;
-      try {
-        const frame = canvas.toDataURL('image/jpeg', 0.4);
-        socket.send({ type: 'camera-frame', frame });
-      } catch {
-        // ignore
-      }
-    }, CAMERA_FRAME_RATE);
-    return () => clearInterval(id);
-  }, [socket.isConnected, socket.send]);
-
-  useEffect(() => {
-    if (initLoggedRef.current) return;
-    initLoggedRef.current = true;
-    const wsUrl =
-      process.env.NEXT_PUBLIC_WS_URL ??
-      `ws://${window.location.hostname}:5001`;
-    log('info', 'Boat simulator initialized');
-    log('info', `Server: ${wsUrl}`);
-
-    if (searchParams.get('autoStart') === '1') {
-      log('info', `Auto-starting as ${initialBoatId}...`);
-      socket.connect(initialBoatId);
-    } else {
-      log('info', 'Click "启动船只" to connect');
+    if (!state) return;
+    stateRef.current = state;
+    if (!homeInitedRef.current && state.lat && state.lng) {
+      homeRef.current = { lat: state.lat, lng: state.lng };
+      homeInitedRef.current = true;
     }
-  }, [log, searchParams, initialBoatId, socket]);
-
-  const onToggleConnection = () => {
-    if (socket.isConnected) {
-      socket.disconnect();
-    } else {
-      socket.connect(boatId || DEFAULT_BOAT_ID);
+    const trail = trailRef.current;
+    const last = trail[trail.length - 1];
+    if (
+      !last ||
+      Math.abs(state.lat - last.lat) + Math.abs(state.lng - last.lng) > DEG_PER_METER * 0.5
+    ) {
+      trail.push({ lat: state.lat, lng: state.lng });
+      if (trail.length > MAX_TRAIL_POINTS) trail.shift();
     }
-  };
+  }, [state]);
 
-  const onToggleIR = () => {
-    sim.setCameraMode({ ir: !sim.stateRef.current.ir });
-  };
+  // Reset trail/home when switching boats
+  useEffect(() => {
+    trailRef.current = [];
+    homeInitedRef.current = false;
+    stateRef.current = emptyState(boatId);
+  }, [boatId]);
 
-  const onToggleLight = () => {
-    sim.setCameraMode({ light: !sim.stateRef.current.light });
-  };
-
-  const onClearWaypoints = () => {
-    sim.clearWaypoints();
-    refreshWaypointCount();
-  };
+  const battClass =
+    state && state.battery > 50 ? 'green' : state && state.battery > 20 ? 'orange' : 'red';
+  const tempClass =
+    state && state.waterTemp < 12 ? 'blue' : state && state.waterTemp > 24 ? 'orange' : 'green';
 
   return (
     <div className="layout">
       <header className="header">
         <h1 className="header-title">
           <Logo size={22} className="header-logo" />
-          Sienovo Marine <span>Boat Simulator</span>
+          Sienovo Marine <span>· Boat Visualizer</span>
         </h1>
-        <StatusBadge status={socket.status} />
+        <span className={`status-badge ${statusClass(status)}`}>{statusLabel(status)}</span>
       </header>
 
       <div className="lake-view">
         <LakeCanvas
-          stateRef={sim.stateRef}
-          trailRef={sim.trailRef}
-          waypointsRef={sim.waypointsRef}
-          targetRef={sim.targetRef}
-          homeRef={sim.homeRef}
-          isReturningHomeRef={sim.isReturningHomeRef}
+          stateRef={stateRef}
+          trailRef={trailRef}
+          waypointsRef={waypointsRef}
+          targetRef={targetRef}
+          homeRef={homeRef}
+          isReturningHomeRef={isReturningHomeRef}
         />
       </div>
 
-      <SidePanel
-        state={sim.snapshot}
-        status={socket.status}
-        isConnected={socket.isConnected}
-        boatId={boatId}
-        waypointCount={waypointCount}
-        boats={boats}
-        onBoatIdChange={setBoatId}
-        onToggleConnection={onToggleConnection}
-        onToggleIR={onToggleIR}
-        onToggleLight={onToggleLight}
-        onClearWaypoints={onClearWaypoints}
-        cameraCanvasRef={cameraCanvasRef}
-        stateRef={sim.stateRef}
-      />
+      <aside className="side-panel">
+        <BoatList boats={boats} activeId={boatId} onSelect={setBoatId} />
 
-      <LogPanel entries={entries} />
+        <section className="panel-section">
+          <h3>船载摄像头</h3>
+          <div className="camera-view">
+            {cameraFrame ? (
+              <img
+                src={cameraFrame.dataUrl}
+                alt="camera"
+                style={{ width: '100%', display: 'block' }}
+              />
+            ) : (
+              <CameraCanvas ref={cameraCanvasRef} stateRef={stateRef} />
+            )}
+            <div className="camera-label">
+              <span className="dot" /> {cameraFrame ? 'LIVE' : 'NO SIGNAL'}
+            </div>
+          </div>
+        </section>
+
+        <section className="panel-section">
+          <h3>船只 · {boatId}</h3>
+          <div className="stat-grid">
+            <div className="stat-item">
+              <div className="stat-label">速度</div>
+              <div className="stat-value blue">
+                {state ? `${(state.speed * 3.6).toFixed(1)}` : '—'} km/h
+              </div>
+            </div>
+            <div className="stat-item">
+              <div className="stat-label">航向</div>
+              <div className="stat-value green">{state ? `${state.heading.toFixed(0)}°` : '—'}</div>
+            </div>
+            <div className="stat-item">
+              <div className="stat-label">距离</div>
+              <div className="stat-value orange">
+                {state ? `${state.distance.toFixed(0)}m` : '—'}
+              </div>
+            </div>
+            <div className="stat-item">
+              <div className="stat-label">电量</div>
+              <div className={`stat-value ${state ? battClass : ''}`}>
+                {state ? `${state.battery.toFixed(0)}%` : '—'}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="panel-section">
+          <h3>水下传感</h3>
+          <div className="stat-grid">
+            <div className="stat-item">
+              <div className="stat-label">水深</div>
+              <div className="stat-value blue">
+                {state ? `${state.depth.toFixed(1)}m` : '—'}
+              </div>
+            </div>
+            <div className="stat-item">
+              <div className="stat-label">水温</div>
+              <div className={`stat-value ${state ? tempClass : ''}`}>
+                {state ? `${state.waterTemp.toFixed(1)}°C` : '—'}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="panel-section">
+          <h3>饵料仓</h3>
+          <div className="bait-bar">
+            <div
+              className="bait-bar-fill"
+              style={{ width: `${state ? state.baitLevel : 0}%` }}
+            />
+          </div>
+          <div className="bait-meta">
+            剩余: <span>{state ? state.baitLevel.toFixed(0) : '—'}</span>%
+          </div>
+        </section>
+
+        <section className="panel-section">
+          <h3>GPS 坐标</h3>
+          <div className="gps">
+            <div>纬度: <span>{state ? state.lat.toFixed(6) : '—'}</span></div>
+            <div>经度: <span>{state ? state.lng.toFixed(6) : '—'}</span></div>
+          </div>
+        </section>
+
+        <section className="panel-section">
+          <h3>仪表盘入口</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Link href={`/boats/${encodeURIComponent(boatId)}/status`} className="btn btn-secondary">
+              状态仪表盘 →
+            </Link>
+            <Link href={`/boats/${encodeURIComponent(boatId)}/control`} className="btn btn-primary">
+              操作仪表盘 →
+            </Link>
+          </div>
+          {errorMessage && (
+            <p style={{ color: '#dc2626', fontSize: 12, marginTop: 8 }}>{errorMessage}</p>
+          )}
+          <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            本页只读：实时订阅 IoT Core 上的船端数据。要驾驶请进操作仪表盘；要让船上线，本机跑 <code>npm run sim</code>。
+          </p>
+        </section>
+      </aside>
     </div>
   );
+}
+
+function emptyState(id: string): BoatState {
+  return {
+    id,
+    lat: 30.2741,
+    lng: 120.1551,
+    heading: 0,
+    speed: 0,
+    battery: 0,
+    signal: 0,
+    baitLevel: 0,
+    distance: 0,
+    depth: 0,
+    waterTemp: 0,
+    ir: false,
+    light: false,
+    isOnline: false,
+    components: {
+      motor: 'offline',
+      battery: 'offline',
+      gps: 'offline',
+      camera: 'offline',
+      light: 'offline',
+      baitDispenser: 'offline',
+      rudder: 'offline',
+      link: 'offline',
+    },
+  };
+}
+
+function statusLabel(s: string) {
+  switch (s) {
+    case 'connecting':
+      return '连接中…';
+    case 'waiting':
+      return '已连接，等待船上线';
+    case 'live':
+      return '在线';
+    case 'offline':
+      return '船离线';
+    case 'error':
+      return '连接异常';
+    default:
+      return s;
+  }
+}
+
+function statusClass(s: string) {
+  if (s === 'live') return 'online';
+  if (s === 'connecting' || s === 'waiting') return 'connecting';
+  return 'offline';
 }

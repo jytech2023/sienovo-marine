@@ -1,0 +1,80 @@
+%%{init: {"layout": "elk"}}%%
+graph TD
+
+    %% ===== 物理位置：船上（湖中央）=====
+    subgraph BOAT["🚤 打窩船（設備端 · 在湖上）"]
+        MCU["MCU (ESP32 / STM32)<br>C/C++ · FreeRTOS"]
+        MODEM["4G / LTE 模組<br>SIM7600 / Quectel"]
+        GPS["GNSS（GPS/北斗）"]
+        MOTOR["推進器 / 電調"]
+        FEEDER["投餌機構"]
+        BMS["電池管理 BMS"]
+        SENS["電量/電流/溫度"]
+
+        MCU --> MODEM
+        MCU --> GPS
+        MCU --> MOTOR
+        MCU --> FEEDER
+        MCU --> BMS
+        MCU --> SENS
+    end
+
+    %% ===== 物理位置：蜂窩網路（電信運營商）=====
+    subgraph NET["📡 蜂窩網路（公網傳輸）"]
+        LTE["4G / LTE<br>基站 → 核心網 → 公網"]
+    end
+
+    %% ===== 物理位置：雲端機房（同一個 VPC / 內網）=====
+    subgraph DC["☁️☁️ 雲端數據中心（同 VPC · 內網互通）"]
+        subgraph CLOUD["IoT 平台"]
+            BROKER["MQTT Broker<br>EMQX / Mosquitto"]
+            AUTH["設備認證<br>TLS / X.509 / Token"]
+            RULE["Rule Engine / Stream"]
+        end
+
+        subgraph BACKEND["🧩 Backend"]
+            API["API（FastAPI / Node.js）"]
+            TSDB["時序庫（Timescale / InfluxDB）"]
+            DB["業務庫（PostgreSQL）"]
+            OTA["OTA 升級服務"]
+            AI["分析 / AI（Python）"]
+        end
+    end
+
+    %% ===== 物理位置：用戶手機 / 電腦（家裡 / 辦公室）=====
+    subgraph APP["📱 用戶端（任意位置 · 走 WiFi/4G）"]
+        MOBILE["App（React Native）"]
+        WEB["Web（React）"]
+    end
+
+    %% ===== 上行 (telemetry) — 經 4G 公網 =====
+    MODEM == "MQTT/TLS<br>(走 4G 公網)" ==> LTE
+    LTE == "MQTT/TLS<br>(走 4G 公網)" ==> BROKER
+
+    %% ===== 雲端內網（不經 4G）=====
+    BROKER -- 內網 --> AUTH
+    BROKER -- 內網 --> RULE
+    RULE -- 內網 --> API
+    API -- 內網 --> TSDB
+    API -- 內網 --> DB
+    DB -- 內網 --> AI
+    API -- 內網 --> OTA
+
+    %% ===== 用戶端 ↔ Backend（HTTPS / WSS 公網）=====
+    MOBILE -- HTTPS / WSS --> API
+    WEB -- HTTPS / WSS --> API
+    API -. 即時推送 (WebSocket/SSE) .-> MOBILE
+    API -. 即時推送 (WebSocket/SSE) .-> WEB
+
+    %% ===== 下行 (control) — 控制指令 =====
+    MOBILE -- 控制指令<br>HTTPS --> API
+    WEB -- 控制指令<br>HTTPS --> API
+    API -- 內網 --> BROKER
+    BROKER == "MQTT 下發<br>(走 4G 公網)" ==> LTE
+    LTE == "MQTT 下發<br>(走 4G 公網)" ==> MODEM
+
+    %% ===== 樣式 =====
+    classDef cellular fill:#fff3cd,stroke:#ff9800,stroke-width:2px;
+    classDef cloud fill:#e3f2fd,stroke:#1976d2,stroke-width:2px;
+    class LTE cellular;
+    class BROKER,API,TSDB,DB,OTA,AI,AUTH,RULE cloud;

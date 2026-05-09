@@ -3,20 +3,20 @@ import { LogoLockup } from './_components/Logo';
 
 const apps = [
   {
-    href: '/boat-simulator',
-    title: 'Control Center',
-    titleZh: '中控台（含模拟器模式）',
+    href: '/boats',
+    title: 'Boat Management',
+    titleZh: '船队管理',
     description:
-      'Web 端实时大屏：地图、视频、遥测、航点指挥与日志一体化。无实船时自动切换模拟器模式，方便研发与培训。',
+      '集中管理船队：在线状态、电量信号、归属分组、航迹回放与告警记录。点击单艘船进入"状态仪表盘"或"操作仪表盘"。',
     status: 'live' as const,
     phase: 'v1',
   },
   {
-    href: '/boats',
-    title: 'Boat Management',
-    titleZh: '船只管理',
+    href: '/boat-simulator',
+    title: 'Browser Simulator (Legacy)',
+    titleZh: '浏览器内置模拟器（旧版，待迁移）',
     description:
-      '集中管理船队：在线状态、电量信号、归属分组、航迹回放与告警记录，运营调度一站式视图。',
+      'v0 时期内置在浏览器的模拟船 + 中控台。新架构下已被 Node 模拟船 (simulator/boat.mjs) + AWS IoT Core 取代，保留此入口仅作回归对比。',
     status: 'live' as const,
     phase: 'v1',
   },
@@ -30,12 +30,12 @@ const apps = [
     phase: 'v1',
   },
   {
-    href: '#cloud-backend',
+    href: '/cloud-backend',
     title: 'Cloud Backend',
-    titleZh: '云端控制服务',
+    titleZh: '云端控制服务（AWS IoT Core）',
     description:
-      'MQTT / WebSocket 信令 + RTMP / WebRTC 图传中转，统一管理设备接入、用户权限、轨迹与告警。',
-    status: 'pending' as const,
+      'AWS IoT Core 托管 MQTT broker（ap-east-1，香港）；船端 X.509 证书直连，浏览器经 Cognito 临时凭证签 SigV4 走 WSS。点击查看实时连通性 / 船队心跳。',
+    status: 'live' as const,
     phase: 'v1',
   },
   {
@@ -55,15 +55,6 @@ const apps = [
       '船端 4G 直推 RTMP / WebRTC 至云服务器，App 拉流播放，支持多人观看与历史回放。',
     status: 'pending' as const,
     phase: 'v1',
-  },
-  {
-    href: '#bridge-firmware',
-    title: 'Bridge Firmware',
-    titleZh: '遥控盒子固件',
-    description:
-      'Coming Soon · ESP32 + CC1101 + BLE，提供本地 300m 长距遥控通道，应对无蜂窝信号的水库山区。',
-    status: 'planned' as const,
-    phase: 'v2',
   },
 ];
 
@@ -103,6 +94,12 @@ const scenarios = [
     title: '水文 / 测绘作业',
     desc: '替代有人作业船完成浅水测深、岸线测绘、航道勘察，进入大船无法靠近的浅滩与水草区。',
     audience: '水利 / 测绘 / 工勘',
+  },
+  {
+    icon: '📶',
+    title: '无蜂窝信号区域作业',
+    desc: '深山水库 / 偏远湖泊 4G 不稳，依赖本地遥控盒子（ESP32 + BLE + 433MHz），手机直连 300m 内可控；规划中。',
+    audience: '水库 / 山区 / 应急（v2 Coming Soon）',
   },
 ];
 
@@ -147,21 +144,6 @@ const channels = [
     links: [
       { tech: '4G / WiFi', range: '任意有网处' },
       { tech: '4G 蜂窝', range: '任意有信号处' },
-    ],
-  },
-  {
-    name: '增强链路（Coming Soon）',
-    purpose: '本地低延迟通道，无蜂窝信号场景的兜底',
-    accent: 'cyan' as const,
-    badge: 'Coming Soon',
-    nodes: [
-      { label: '手机 App', sub: '本地摇杆' },
-      { label: '遥控盒子', sub: '随身 / 岸边' },
-      { label: '无人船', sub: '执行指令' },
-    ],
-    links: [
-      { tech: 'BLE 蓝牙', range: '随身 ~30m' },
-      { tech: '433MHz', range: '视距 300m+' },
     ],
   },
 ];

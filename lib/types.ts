@@ -1,3 +1,17 @@
+export type ComponentStatus = 'normal' | 'warning' | 'damaged' | 'offline';
+
+export type ComponentKey =
+  | 'motor'
+  | 'battery'
+  | 'gps'
+  | 'camera'
+  | 'light'
+  | 'baitDispenser'
+  | 'rudder'
+  | 'link';
+
+export type ComponentMap = Record<ComponentKey, ComponentStatus>;
+
 export type BoatState = {
   id: string;
   lat: number;
@@ -13,6 +27,7 @@ export type BoatState = {
   ir: boolean;
   light: boolean;
   isOnline: boolean;
+  components: ComponentMap;
 };
 
 export type BoatCommand = {
@@ -50,4 +65,5 @@ export type IncomingMessage =
   | { type: 'set-waypoint'; lat: number; lng: number }
   | { type: 'clear-waypoints' }
   | { type: 'bait-at-waypoint'; lat: number; lng: number }
-  | { type: 'set-camera-mode'; ir?: boolean; light?: boolean };
+  | { type: 'set-camera-mode'; ir?: boolean; light?: boolean }
+  | { type: 'set-fault'; component: ComponentKey; status: ComponentStatus };

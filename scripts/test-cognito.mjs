@@ -1,0 +1,10 @@
+import { CognitoIdentityClient, GetIdCommand, GetCredentialsForIdentityCommand } from '@aws-sdk/client-cognito-identity';
+const REGION = 'ap-east-1';
+const POOL = 'ap-east-1:94175a79-f33f-48c1-89f3-fc79288207f0';
+const c = new CognitoIdentityClient({ region: REGION });
+const idResp = await c.send(new GetIdCommand({ IdentityPoolId: POOL }));
+console.log('IdentityId:', idResp.IdentityId);
+const credResp = await c.send(new GetCredentialsForIdentityCommand({ IdentityId: idResp.IdentityId }));
+console.log('AccessKeyId:', credResp.Credentials?.AccessKeyId);
+console.log('SessionToken length:', credResp.Credentials?.SessionToken?.length);
+console.log('Expiration:', credResp.Credentials?.Expiration);

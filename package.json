@@ -7,14 +7,20 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "server": "node --env-file=.env.local server/index.mjs"
+    "sim": "node simulator/boat.mjs"
   },
   "dependencies": {
+    "@auth0/nextjs-auth0": "^4",
+    "@aws-crypto/sha256-js": "^5.2.0",
+    "@aws-sdk/client-cognito-identity": "^3.1045.0",
+    "@aws-sdk/credential-providers": "^3.1045.0",
     "@neondatabase/serverless": "^1.1.0",
+    "@smithy/protocol-http": "^5.3.14",
+    "@smithy/signature-v4": "^5.3.14",
+    "mqtt": "^5.15.1",
     "next": "^15.1.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "ws": "^8.20.0"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
