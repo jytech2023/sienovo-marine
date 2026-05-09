@@ -87,7 +87,7 @@ AmazonRootCA1.pem          # broker 端根 CA，所有船共用
 
 | 资源 | 名称 |
 |---|---|
-| Region | `ap-east-1` |
+| Region | `ap-east-1` · **AWS 香港**（Hong Kong）— 选它因为离深圳客户最近（~10-30ms）且能用现有 jytech AWS 账号；中国区 cn-north-1/cn-northwest-1 需要独立账号 + ICP 备案 |
 | Broker endpoint | `a36ytt8gq852xf-ats.iot.ap-east-1.amazonaws.com` |
 | Thing Type | `sienovo-boat` |
 | IoT Policy（船端） | `sienovo-boat-dev-policy` |

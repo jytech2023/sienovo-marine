@@ -1,5 +1,7 @@
 # Sienovo Marine · 硬件接入文档
 
+> **版本**：v0.1.2 · **更新**：2026-05-09 · **状态**：v1 IoT Core 上线初版（生产可用）
+
 面向**船端固件团队**（ESP32 / 树莓派 / 其它 MCU）。读完这份文档你应该能：
 
 1. 让一台真实船硬件作为 IoT thing 接入云端
@@ -14,8 +16,8 @@
 ```
 ┌─────────────┐  MQTT/TLS:8883  ┌──────────────────┐  WSS+SigV4:443  ┌─────────────┐
 │  你的船     │◀────cert auth──▶│  AWS IoT Core    │◀──Cognito──────▶│  浏览器     │
-│  (ESP32 /   │                 │  ap-east-1       │                 │  dashboard  │
-│   firmware) │                 │  (managed broker)│                 │  on Vercel  │
+│  (ESP32 /   │                 │  ap-east-1 (HK)  │                 │  dashboard  │
+│   firmware) │                 │  managed broker  │                 │  on Vercel  │
 └─────────────┘                 └──────────────────┘                 └─────────────┘
 ```
 
@@ -46,6 +48,7 @@
 
 | 项 | 值 |
 |---|---|
+| Region | `ap-east-1` · **AWS 香港**（Asia Pacific Hong Kong），到深圳延迟 ~10-30ms / 杭州 ~40-50ms |
 | Endpoint (broker host) | `a36ytt8gq852xf-ats.iot.ap-east-1.amazonaws.com` |
 | Port | `8883` (MQTT over TLS) |
 | Protocol | MQTT 3.1.1（推荐）或 5.0 |
@@ -355,34 +358,14 @@ void on_network_status(int rssi, int queue_depth) {
 
 切换后**下一帧 state 必须把 `state.ir` / `state.light` 更新成实际状态**——不要假设命令一定生效（LED 烧了、机械切换卡了都可能失败）。失败了 ➜ 推 `event` `{ "type": "alert", "code": "camera-mode-switch-failed" }`。
 
-### 5.4 实时视频 / WebRTC（v1.5+ 路线，不在当前协议）
+### 5.4 实时视频（v1.5+，不在当前协议）
 
-> **告知性章节**——v1 不实现。下面只是让硬件组提前知道架构走向，物料选型时考虑兼容。
+> v1 协议**只走 MQTT 缩略图**（§5.3）。真实实时视频流的协议 / SDK / 后端服务由运维侧另行确定，硬件协议会在 v1.5 时单独发布。**硬件组现阶段只做下面两件事**：
 
-走 WebRTC 而不是 MQTT，原因：
+1. **确保摄像头模组支持硬件 H.264 编码**（如 OV5640 + ESP32-S3 编码器，或带 ISP 的 IPC SoC），**不要选只能 JPEG 的型号**。未来切实时视频时直出 H.264 才不会拖崩 CPU。
+2. **预留 4G 模组上行带宽至少 1 Mbps 余量**（v1 用不到，但视频跑起来后必须）。
 
-- **延迟**：WebRTC P2P 30-100ms vs MQTT through cloud 150-300ms（远程驾驶感差异巨大）
-- **带宽**：H.264 实时视频 1-3 Mbps，MQTT 单条 128KB 上限根本扛不住
-- **成本**：MQTT 按消息计费，30fps 视频每船每天 260 万条消息直接破产
-
-架构：
-
-```text
-                   信令: SDP / ICE candidates 走 MQTT (小数据)
-                ──────────────────────────────────────────▶
-┌──────────┐                                          ┌──────────┐
-│  船端    │   媒体流: H.264 / Opus over SRTP / UDP   │  浏览器   │
-│ (camera) │ ════════════════════ P2P ══════════════▶│           │
-│          │   ↑ NAT 穿透不了的话回落 TURN 中继        │           │
-└──────────┘                                          └──────────┘
-```
-
-候选实现：
-1. **AWS Kinesis Video Streams WebRTC**（推荐）—— 自带 STUN+TURN，浏览器有官方 SDK；ESP32 端可用 [amazon-kinesis-video-streams-webrtc-sdk-c](https://github.com/awslabs/amazon-kinesis-video-streams-webrtc-sdk-c)
-2. **LiveKit / Daily / mediasoup** —— 第三方托管，简单但脱离 AWS 栈
-3. **RTMP 推流 + HLS 拉流** —— 一对多分发好，但延迟 5-10 秒，不适合驾驶
-
-**硬件选型预留**：摄像头模组**优先选硬件 H.264 编码款**（如 OV5640 + ESP32-S3 编码器、或专用 ISP），不要只支持 JPEG——v1.5 上 WebRTC 时直出 H.264 才不会让 CPU 拖崩。
+具体走哪家方案（AWS / 腾讯云 / 阿里云 / 自建）由运维定，对硬件组的接口在选定后另行通知。
 
 ### 5.5 下行 · `sienovo/boats/{id}/control` （JSON）
 
@@ -553,4 +536,10 @@ void publish_state_5hz(void) {
 - 接入问题：先用 `simulator/boat.mjs` 跑通 → 再对比你的实现差在哪
 - 想加新 topic / 新 message type：先开 issue 讨论，不要私下扩协议
 
-文档版本：v1（IoT Core 上线初版）· 2026-05-09
+## 12. 版本历史
+
+| 版本 | 日期 | 变更 |
+|---|---|---|
+| **v0.1.2** | 2026-05-09 | 摄像头 §5.3 加 ESP32+OV2640 实现细节、自适应降级、IR/补光反馈；§5.4 实时视频简化为 2 条硬约束（H.264 模组 + 1 Mbps 带宽余量），方案选型搬到运维内部文档；§3 加 Region 行（ap-east-1 = AWS 香港） |
+| v0.1.1 | 2026-05-09 | §5.2 事件用例拆 5 类（投饵 / 自主航行 / 告警 / 维护 / 投饵完整时间线）；§5 头部加 payload 格式声明 |
+| v0.1.0 | 2026-05-09 | 初版 — IoT Core 上线，覆盖 11 节完整接入协议 |
