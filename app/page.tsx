@@ -12,6 +12,15 @@ const apps = [
     phase: 'v1',
   },
   {
+    href: '/remote',
+    title: 'Remote Controller',
+    titleZh: '遥控器（移动端 / 全屏）',
+    description:
+      '一屏全显示的遥控界面：D-pad + 一键投饵 / 返航 / 紧急停 + 实时遥测。优化触摸操作，支持 WASD / 方向键 / 空格键盘控制。',
+    status: 'live' as const,
+    phase: 'v1',
+  },
+  {
     href: '/boat-simulator',
     title: 'Browser Simulator (Legacy)',
     titleZh: '浏览器内置模拟器（旧版，待迁移）',
@@ -21,12 +30,12 @@ const apps = [
     phase: 'v1',
   },
   {
-    href: '#mobile-app',
+    href: '/download',
     title: 'Mobile Controller',
-    titleZh: '移动 App（与中控台同源）',
+    titleZh: '移动 App 下载（Android）',
     description:
-      'iOS / Android 客户端，与 Web 中控台共享同一套 API，外勤遥控、查看视频与告警，随手即用。',
-    status: 'pending' as const,
+      'Android 客户端：MQTT 遥控 + RTSP 实时视频，外勤随手即用。点击下载 APK（R2 / GitHub / Expo 三镜像）。',
+    status: 'live' as const,
     phase: 'v1',
   },
   {
