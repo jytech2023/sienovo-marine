@@ -7,27 +7,34 @@ export const metadata: Metadata = {
     '下载 Sienovo Marine 打窝船遥控 App（Android）。支持 R2 高速 / GitHub / Expo 三个下载镜像，含安装说明。',
 };
 
-const VERSION = 'v0.1.0';
+// ⚠️ 发版后只需改这两行:VERSION,以及 EAS_ARTIFACT(它是构建哈希,无法从版本号推导)。
+// R2 与 GitHub 的下载地址都从 VERSION 派生 —— 以前是四处硬编码,漏改一处
+// 用户就会下到旧版本的 APK。
+const VERSION = 'v0.1.1';
 const APK_NAME = `sienovo-marine-tencent-${VERSION}.apk`;
 const APK_SIZE = '227 MB';
+
+// EAS 构建产物地址(每次构建都是新哈希,取自 CI 日志 / expo.dev 构建页)
+const EAS_ARTIFACT =
+  'https://expo.dev/artifacts/eas/Rji8gH9M5NStx855--UTUEKbzyjrDKYuLDxolVSTD1M.apk';
 
 const mirrors = [
   {
     label: 'R2 高速下载',
     sub: 'Cloudflare CDN · 推荐',
-    href: 'https://pub-048dcb96257f476697b113fcb5939cb9.r2.dev/mobile/sienovo-marine-tencent-v0.1.0.apk',
+    href: `https://pub-048dcb96257f476697b113fcb5939cb9.r2.dev/mobile/${APK_NAME}`,
     primary: true,
   },
   {
     label: 'GitHub 下载',
     sub: 'GitHub Releases',
-    href: 'https://github.com/jytechllc/sienovo-marine-tencent-releases/releases/download/v0.1.0/sienovo-marine-tencent-v0.1.0.apk',
+    href: `https://github.com/jytechllc/sienovo-marine-tencent-releases/releases/download/${VERSION}/${APK_NAME}`,
     primary: false,
   },
   {
     label: 'Expo 下载',
     sub: 'EAS 构建产物',
-    href: 'https://expo.dev/artifacts/eas/QJsOmQ-WypdpUq4P51NBakp65dMPEdxCKWReuKFmW48.apk',
+    href: EAS_ARTIFACT,
     primary: false,
   },
 ];
