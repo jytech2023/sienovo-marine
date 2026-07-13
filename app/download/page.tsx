@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 // ⚠️ 发版后只需改这两行:VERSION,以及 EAS_ARTIFACT(它是构建哈希,无法从版本号推导)。
 // R2 与 GitHub 的下载地址都从 VERSION 派生 —— 以前是四处硬编码,漏改一处
 // 用户就会下到旧版本的 APK。
-const VERSION = 'v0.1.3';
+const VERSION = 'v0.1.4';
 const APK_NAME = `sienovo-marine-tencent-${VERSION}.apk`;
 const APK_SIZE = '227 MB';
 
