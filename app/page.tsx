@@ -168,6 +168,16 @@ export default function HomePage() {
             围绕饵料船、巡检船、采样船等水面无人作业场景，提供从手机遥控、远距通信到船端控制的一体化方案，
             让钓场、水务、环保、养殖、应急等行业更省人、更安全。
           </p>
+          <div className="home-cta">
+            <Link href="/download" className="home-cta-btn home-cta-primary">
+              <span className="home-cta-label">⬇ 下载 App</span>
+              <span className="home-cta-sub">Android · 手机遥控 + 实时视频</span>
+            </Link>
+            <Link href="/remote" className="home-cta-btn">
+              <span className="home-cta-label">在线遥控台</span>
+              <span className="home-cta-sub">浏览器直接试用</span>
+            </Link>
+          </div>
         </div>
       </header>
 

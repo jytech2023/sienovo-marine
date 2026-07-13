@@ -1111,6 +1111,48 @@ textarea.form-input {
   line-height: 1.6;
 }
 
+/* 首屏 CTA:App 下载此前只是功能网格里的第 4 张卡片,访客根本找不到。 */
+.home-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+.home-cta-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 22px;
+  border-radius: 10px;
+  border: 1px solid #2a3f5a;
+  background: #12243a;
+  text-decoration: none;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+.home-cta-btn:hover {
+  border-color: #4ecdc4;
+  transform: translateY(-1px);
+}
+.home-cta-primary {
+  border-color: #4ecdc4;
+  background: rgba(78, 205, 196, 0.12);
+}
+.home-cta-primary:hover {
+  background: rgba(78, 205, 196, 0.2);
+}
+.home-cta-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e0e8f0;
+}
+.home-cta-primary .home-cta-label {
+  color: #4ecdc4;
+}
+.home-cta-sub {
+  font-size: 12px;
+  color: #8fa6c0;
+}
+
 .home-section {
   padding: 48px 24px;
   max-width: 960px;
