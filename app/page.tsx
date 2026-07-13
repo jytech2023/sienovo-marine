@@ -11,13 +11,16 @@ const apps = [
     status: 'live' as const,
     phase: 'v1',
   },
+  // 页面已写好但刻意不发布：它能遥控真实船只，而站点没有强制登录
+  // （Auth0 middleware 只刷新会话，不拦截）。公开它等于让任何访客开船。
+  // 加上鉴权门禁之前，不给入口 —— 此前它标着 live 却是 404。
   {
-    href: '/remote',
+    href: '#remote',
     title: 'Remote Controller',
     titleZh: '遥控器（移动端 / 全屏）',
     description:
-      '一屏全显示的遥控界面：D-pad + 一键投饵 / 返航 / 紧急停 + 实时遥测。优化触摸操作，支持 WASD / 方向键 / 空格键盘控制。',
-    status: 'live' as const,
+      '一屏全显示的遥控界面：D-pad + 一键投饵 / 返航 / 紧急停 + 实时遥测。优化触摸操作，支持 WASD / 方向键 / 空格键盘控制。上线前需接入登录鉴权。',
+    status: 'pending' as const,
     phase: 'v1',
   },
   {
@@ -173,9 +176,9 @@ export default function HomePage() {
               <span className="home-cta-label">⬇ 下载 App</span>
               <span className="home-cta-sub">Android · 手机遥控 + 实时视频</span>
             </Link>
-            <Link href="/remote" className="home-cta-btn">
-              <span className="home-cta-label">在线遥控台</span>
-              <span className="home-cta-sub">浏览器直接试用</span>
+            <Link href="/boats" className="home-cta-btn">
+              <span className="home-cta-label">船队管理</span>
+              <span className="home-cta-sub">在线状态 · 航迹 · 告警</span>
             </Link>
           </div>
         </div>
