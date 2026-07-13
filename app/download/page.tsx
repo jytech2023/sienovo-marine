@@ -7,37 +7,50 @@ export const metadata: Metadata = {
     '下载 Sienovo Marine 打窝船遥控 App（Android）。支持 R2 高速 / GitHub / Expo 三个下载镜像，含安装说明。',
 };
 
-// ⚠️ 发版后只需改这两行:VERSION,以及 EAS_ARTIFACT(它是构建哈希,无法从版本号推导)。
-// R2 与 GitHub 的下载地址都从 VERSION 派生 —— 以前是四处硬编码,漏改一处
-// 用户就会下到旧版本的 APK。
-const VERSION = 'v0.1.4';
-const APK_NAME = `sienovo-marine-tencent-${VERSION}.apk`;
-const APK_SIZE = '227 MB';
+// 发版不需要改这个文件。App 仓库的发布流水线(jytechllc/sienovo-marine-mobile-tencent)
+// 在打完包后会把 mobile/latest.json 传到 R2,本页在请求时读它。这样新版本会自己
+// 出现,不用改代码、不用重新部署。
+//
+// 尤其是 EAS 产物地址:它是构建哈希,无法从版本号推导 —— 只有云端构建跑完才存在。
+// 以前它硬编码在这里,于是每次发版都悄悄指着上一版的 APK。
+const R2_BASE = 'https://pub-048dcb96257f476697b113fcb5939cb9.r2.dev';
+const MANIFEST_URL = `${R2_BASE}/mobile/latest.json`;
 
-// EAS 构建产物地址(每次构建都是新哈希,取自 CI 日志 / expo.dev 构建页)
-const EAS_ARTIFACT =
-  'https://expo.dev/artifacts/eas/Rji8gH9M5NStx855--UTUEKbzyjrDKYuLDxolVSTD1M.apk';
+// R2 抓不到时的兜底 —— 页面宁可显示一个旧版本,也不能挂掉。
+const FALLBACK: Release = {
+  version: 'v0.1.4',
+  apkName: 'sienovo-marine-tencent-v0.1.4.apk',
+  apkSize: '227 MB',
+  mirrors: {
+    r2: `${R2_BASE}/mobile/sienovo-marine-tencent-v0.1.4.apk`,
+    github:
+      'https://github.com/jytechllc/sienovo-marine-tencent-releases/releases/download/v0.1.4/sienovo-marine-tencent-v0.1.4.apk',
+    eas: 'https://expo.dev/artifacts/eas/3QUCqBzhdkmEueiFjGqI8JMDM-qfSu-oXxf1PJ6tIwQ.apk',
+  },
+};
 
-const mirrors = [
-  {
-    label: 'R2 高速下载',
-    sub: 'Cloudflare CDN · 推荐',
-    href: `https://pub-048dcb96257f476697b113fcb5939cb9.r2.dev/mobile/${APK_NAME}`,
-    primary: true,
-  },
-  {
-    label: 'GitHub 下载',
-    sub: 'GitHub Releases',
-    href: `https://github.com/jytechllc/sienovo-marine-tencent-releases/releases/download/${VERSION}/${APK_NAME}`,
-    primary: false,
-  },
-  {
-    label: 'Expo 下载',
-    sub: 'EAS 构建产物',
-    href: EAS_ARTIFACT,
-    primary: false,
-  },
-];
+interface Release {
+  version: string;
+  apkName: string;
+  apkSize: string;
+  mirrors: { r2: string; github: string; eas: string };
+}
+
+// 每 5 分钟回源一次:发版后下载页最多 5 分钟就切到新版本。
+export const revalidate = 300;
+
+async function getRelease(): Promise<Release> {
+  try {
+    const res = await fetch(MANIFEST_URL, { next: { revalidate } });
+    if (!res.ok) return FALLBACK;
+    const m = (await res.json()) as Partial<Release>;
+    // 清单缺字段就整体退回兜底,别拼出一个半残的下载链接给用户。
+    if (!m.version || !m.apkName || !m.mirrors?.r2) return FALLBACK;
+    return { ...FALLBACK, ...m } as Release;
+  } catch {
+    return FALLBACK;
+  }
+}
 
 const steps = [
   '在 Android 手机上点击下方任一「下载」按钮，保存 APK 文件。',
@@ -46,7 +59,31 @@ const steps = [
   '打开 App → 输入设备号（默认 boat001）→ 点击「连接」。',
 ];
 
-export default function DownloadPage() {
+export default async function DownloadPage() {
+  const release = await getRelease();
+  const { version: VERSION, apkName: APK_NAME, apkSize: APK_SIZE } = release;
+
+  const mirrors = [
+    {
+      label: 'R2 高速下载',
+      sub: 'Cloudflare CDN · 推荐',
+      href: release.mirrors.r2,
+      primary: true,
+    },
+    {
+      label: 'GitHub 下载',
+      sub: 'GitHub Releases',
+      href: release.mirrors.github,
+      primary: false,
+    },
+    {
+      label: 'Expo 下载',
+      sub: 'EAS 构建产物',
+      href: release.mirrors.eas,
+      primary: false,
+    },
+  ];
+
   return (
     <main className="dl">
       <header className="dl-hero">
